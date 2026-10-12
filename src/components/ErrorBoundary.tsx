@@ -27,7 +27,7 @@ export default class ErrorBoundary extends Component<Props, State> {
             <h1 className="text-lg font-semibold mb-2">Algo salió mal</h1>
             <p className="text-sm text-text-dim mb-3">
               La app tuvo un error inesperado. Probá recargar la página; si sigue, avisale a
-              Bea o a Ana con el detalle de abajo.
+              una de las admins con el detalle de abajo.
             </p>
             <pre className="text-xs text-left bg-surface-2 border border-border rounded-lg p-3 overflow-auto">
               {this.state.error.message}

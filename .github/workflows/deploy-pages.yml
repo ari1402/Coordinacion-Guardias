@@ -41,9 +41,7 @@ jobs:
             exit 1
           fi
           node scripts/deploy-rules.mjs
-          node scripts/migrate-v2.mjs
-          node scripts/migrate-v3.mjs
-          node scripts/migrate-v4.mjs
+          node scripts/migrate-v5.mjs
           node scripts/sync-holidays.mjs
       - run: npm run build
       - uses: actions/configure-pages@v5

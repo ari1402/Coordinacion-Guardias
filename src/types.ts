@@ -7,8 +7,8 @@ export type Role = 'resident' | 'admin';
 
 export interface Resident {
   id: string; // = uid de Firebase Auth
-  name: string; // "Ana Alba"
-  shortName: string; // "Alba"
+  name: string; // "Ana Pérez"
+  shortName: string; // "Pérez"
   email: string;
   role: Role;
   active: boolean;
@@ -16,6 +16,8 @@ export interface Resident {
   birthday?: string;
   /** Última vez que abrió la app (se actualiza como mucho una vez por día). */
   lastSeenAt?: string;
+  /** Recibe el push del día 10 ("toca generar las guardias") y los avisos de prueba. */
+  avisoGenerar?: boolean;
 }
 
 export type Weekday = 0 | 1 | 2 | 3 | 4 | 5 | 6; // 0 = lunes ... 6 = domingo

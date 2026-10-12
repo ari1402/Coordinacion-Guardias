@@ -5,12 +5,12 @@ import { parseScheduleText } from '../lib/importText';
 import type { DraftSlot, Resident } from '../types';
 import { Modal, btnPrimary, inputCls } from './ui';
 
-const EXAMPLE = `1/11 Funes
-2/11 Duarte
-3/11 sin R1
-Jueves 5: Espina
-Sábado 7 - Alba
-…`;
+/** Ejemplo con los nombres reales de la camada (salen de la base, no del código). */
+function example(residents: Resident[]): string {
+  const n = residents.filter((r) => r.active).map((r) => r.shortName);
+  const at = (i: number) => n[i % (n.length || 1)] ?? 'Apellido';
+  return `1/11 ${at(0)}\n2/11 ${at(1)}\n3/11 sin R1\nJueves 5: ${at(2)}\nSábado 7 - ${at(3)}\n…`;
+}
 
 /**
  * Pegar (o subir un .txt) un cronograma armado afuera — por ejemplo en un
@@ -70,14 +70,14 @@ export default function ImportTextModal({
       <div className="flex flex-col gap-3">
         <p className="text-sm text-text-dim">
           Una guardia por línea: fecha + nombre(s). Sirven fechas como <code>1/11</code>, <code>2026-11-01</code>,{' '}
-          <code>Sábado 7</code> o <code>7 de noviembre</code>, y nombres cortos, apellidos o apodos (Bea, Vale…).
+          <code>Sábado 7</code> o <code>7 de noviembre</code>, y nombres cortos, apellidos o apodos del nombre (como “Vale” por Valentina).
           Para un día sin R1 escribí <code>sin R1</code>.
         </p>
         <textarea
           value={text}
           onChange={(e) => setText(e.target.value)}
           rows={9}
-          placeholder={EXAMPLE}
+          placeholder={example(residents)}
           className={clsx(inputCls, 'font-mono text-xs resize-y')}
         />
         <div className="flex items-center gap-3 flex-wrap text-sm">

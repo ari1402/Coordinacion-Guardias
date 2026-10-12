@@ -248,7 +248,7 @@ function PendingRaffle({
           </button>
         ) : (
           <span className="text-xs text-text-dim">
-            {raffle.linkedSlot ? 'Lo sortean Bea o Ana (es una guardia del cronograma).' : 'Lo sortea quien lo creó.'}
+            {raffle.linkedSlot ? 'Lo sortean las admins (es una guardia del cronograma).' : 'Lo sortea quien lo creó.'}
           </span>
         )}
         {canIgnore && !rolling && (

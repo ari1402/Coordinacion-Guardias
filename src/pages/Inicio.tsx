@@ -12,6 +12,7 @@ import { Card, Dot, Empty, ResidentChip } from '../components/ui';
 import { useAuthContext } from '../context/AuthContext';
 import {
   useAcks,
+  useAdminNames,
   useAllShifts,
   useCalendarData,
   useEvents,
@@ -57,6 +58,7 @@ function daysUntilLabel(n: number) {
 
 export default function Inicio() {
   const { resident: me, isAdmin } = useAuthContext();
+  const adminNames = useAdminNames();
   const { residents } = useResidents();
   const byId = useResidentsById(residents);
   const color = useColors(residents);
@@ -180,7 +182,7 @@ export default function Inicio() {
       {pending.length > 0 && (
         <Card
           title={`¿Cómo te fue en la guardia del ${shortDateLabel(pending[pending.length - 1].date)}?`}
-          subtitle="Dos preguntas, 10 segundos. Sirve para mejorar el reparto (lo detallado solo lo ven Bea y Ana)."
+          subtitle={`Dos preguntas, 10 segundos. Sirve para mejorar el reparto (lo detallado solo lo ven ${adminNames}).`}
           action={
             pending.length > 1 ? (
               <Link to="/feedback" className="text-xs text-accent underline">

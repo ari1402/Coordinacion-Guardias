@@ -2,6 +2,7 @@ import clsx from 'clsx';
 import { doc, writeBatch } from 'firebase/firestore';
 import { useState } from 'react';
 import { db } from '../firebase';
+import { useAdminNames } from '../hooks/data';
 import { logActivity } from '../lib/activity';
 import { shortDateLabel } from '../lib/dates';
 import type { Shift } from '../types';
@@ -25,6 +26,7 @@ export default function FeedbackForm({
   compact?: boolean;
   initialSlept?: boolean;
 }) {
+  const adminNames = useAdminNames();
   const [slept, setSlept] = useState<boolean | null>(initialSlept ?? null);
   const [carga, setCarga] = useState<number | null>(null);
   const [comentario, setComentario] = useState('');
@@ -106,7 +108,7 @@ export default function FeedbackForm({
           value={comentario}
           onChange={(e) => setComentario(e.target.value)}
           rows={2}
-          placeholder="Comentario opcional (solo lo ven Bea y Ana)"
+          placeholder={`Comentario opcional (solo lo ven ${adminNames})`}
           className={clsx(inputCls, 'resize-none')}
         />
       )}

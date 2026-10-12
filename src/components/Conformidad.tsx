@@ -2,6 +2,7 @@ import { doc, setDoc, updateDoc } from 'firebase/firestore';
 import { useState } from 'react';
 import { Link } from 'react-router-dom';
 import { db } from '../firebase';
+import { useAdminNames } from '../hooks/data';
 import { logActivity } from '../lib/activity';
 import { monthKey, monthLabel, shortDateLabel, todayISO } from '../lib/dates';
 import type { MonthAck, Publication, Resident, Shift } from '../types';
@@ -25,6 +26,7 @@ export function pendingAcks(publications: Publication[], acks: MonthAck[], resid
 export function MonthAckCard({ publication, me, shifts }: { publication: Publication; me: Resident; shifts: Shift[] }) {
   const month = publication.id;
   const mine = shifts.filter((s) => s.date.startsWith(month) && s.actualResidentId === me.id && s.status !== 'cancelada');
+  const adminNames = useAdminNames();
   const [mode, setMode] = useState<'ask' | 'no'>('ask');
   const [comment, setComment] = useState('');
   const [busy, setBusy] = useState(false);
@@ -93,7 +95,7 @@ export function MonthAckCard({ publication, me, shifts }: { publication: Publica
           />
           <div className="flex gap-2">
             <button onClick={() => answer(false)} disabled={busy || !comment.trim()} className={btnPrimary}>
-              Avisar a Bea y Ana
+              Avisar a {adminNames}
             </button>
             <button onClick={() => setMode('ask')} className={btnSecondary}>
               Volver

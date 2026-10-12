@@ -25,7 +25,7 @@ function PendingSetup() {
       <div>
         <h1 className="text-lg font-semibold mb-2">Tu cuenta todavía no tiene perfil</h1>
         <p className="text-text-dim text-sm max-w-sm">
-          Pedile a Bea o a Ana que te den de alta en Admin → Residentes.
+          Pedile a una de las admins que te dé de alta en Admin → Residentes.
         </p>
       </div>
     </div>

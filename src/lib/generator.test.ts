@@ -8,13 +8,13 @@ import { buildBreakdown } from './breakdown';
 import { computeEquityCounters } from './equity';
 
 const residents: Resident[] = [
-  ['alba', 'Alba', '01-01'],
-  ['costa', 'Costa', undefined],
-  ['duarte', 'Duarte', '01-01'],
-  ['bravo', 'Bravo', '01-01'],
-  ['espina', 'Espina', '01-01'],
-  ['funes', 'Funes', '01-01'],
-  ['gil', 'Gil', '01-01'],
+  ['ana', 'Ana', '03-21'],
+  ['bruno', 'Bruno', undefined],
+  ['caro', 'Caro', '08-15'],
+  ['dani', 'Dani', '05-30'],
+  ['eli', 'Eli', '01-05'],
+  ['fede', 'Fede', '01-05'],
+  ['gabi', 'Gabi', '06-20'],
 ].map(([id, shortName, birthday]) => ({
   id: id!,
   name: shortName!,
@@ -41,7 +41,7 @@ const configs: MonthConfig[] = [
 function req(partial: Partial<GuardiaRequest>): GuardiaRequest {
   return {
     id: Math.random().toString(36),
-    residentId: 'alba',
+    residentId: 'ana',
     type: 'pedido_fuerte',
     dates: [],
     reason: '',
@@ -93,22 +93,22 @@ describe('generador', () => {
   });
 
   it('no pone guardia el cumpleaños ni el día anterior', () => {
-    const res = residents.map((r) => (r.id === 'costa' ? { ...r, birthday: '11-14' } : r));
+    const res = residents.map((r) => (r.id === 'bruno' ? { ...r, birthday: '11-14' } : r));
     const [opt] = generateOptions({ ...base, residents: res }, { seed: 2, profiles: ['equidad'] });
-    const costa = opt.slots.filter((s) => s.residentId === 'costa').map((s) => s.date);
-    expect(costa).not.toContain('2026-11-13');
-    expect(costa).not.toContain('2026-11-14');
+    const bruno = opt.slots.filter((s) => s.residentId === 'bruno').map((s) => s.date);
+    expect(bruno).not.toContain('2026-11-13');
+    expect(bruno).not.toContain('2026-11-14');
   });
 
   it('no asigna a quien está de vacaciones por carril', () => {
-    const unavailable = ['funes', 'espina', 'bravo'].map((residentId) => ({
+    const unavailable = ['fede', 'eli', 'dani'].map((residentId) => ({
       residentId,
       dates: nov.map((d) => d.date),
       reason: 'Vacaciones',
     }));
     const [opt] = generateOptions({ ...base, unavailable }, { seed: 5, profiles: ['equidad'] });
     const used = new Set(opt.slots.map((s) => s.residentId));
-    for (const id of ['funes', 'espina', 'bravo']) expect(used.has(id)).toBe(false);
+    for (const id of ['fede', 'eli', 'dani']) expect(used.has(id)).toBe(false);
     expect(opt.slots.every((s) => s.residentId)).toBe(true);
     expect(opt.evaluation.issues.filter((i) => i.code === 'no_disponible')).toHaveLength(0);
   });
@@ -150,12 +150,12 @@ describe('generador', () => {
         { ...priorFromCounters(undefined), total: 8, sabPref: 2, feriado: 1, findeTotal: 3, xl: 1, jueves: 1, lastShiftDate: '2026-10-20' },
       ]),
     );
-    // Bravo, Gil y Espina todavía no hicieron feriado.
-    for (const id of ['bravo', 'gil', 'espina']) prior[id] = { ...prior[id], feriado: 0 };
+    // Dani, Gabi y Eli todavía no hicieron feriado.
+    for (const id of ['dani', 'gabi', 'eli']) prior[id] = { ...prior[id], feriado: 0 };
     for (const seed of [51, 52, 53]) {
       const [opt] = generateOptions({ ...base, prior }, { seed, profiles: ['equidad'] });
       const got = feriados.map((d) => opt.slots.find((s) => s.date === d)?.residentId).sort();
-      expect(got).toEqual(['bravo', 'espina', 'gil']);
+      expect(got).toEqual(['dani', 'eli', 'gabi']);
       expect(opt.evaluation.issues.some((i) => i.code === 'feriado_turno')).toBe(false);
     }
   });
@@ -169,56 +169,56 @@ describe('generador', () => {
         { ...priorFromCounters(undefined), total: 8, sabPref: 2, feriado: 1, findeTotal: 3, xl: 1, jueves: 1, lastShiftDate: '2026-10-20' },
       ]),
     );
-    // Costa e Duarte todavía no tuvieron XL; Funes viene con mucha carga pero ya tuvo.
-    prior.costa = { ...prior.costa, xl: 0 };
-    prior.duarte = { ...prior.duarte, xl: 0 };
-    prior.funes = { ...prior.funes, total: 11, sabPref: 4, feriado: 2 };
+    // Bruno e Caro todavía no tuvieron XL; Fede viene con mucha carga pero ya tuvo.
+    prior.bruno = { ...prior.bruno, xl: 0 };
+    prior.caro = { ...prior.caro, xl: 0 };
+    prior.fede = { ...prior.fede, total: 11, sabPref: 4, feriado: 2 };
     for (const seed of [21, 22]) {
       const [opt] = generateOptions({ ...base, prior }, { seed, profiles: ['equidad'] });
       const got = xlDays.map((d) => opt.slots.find((s) => s.date === d)?.residentId).sort();
-      expect(got).toEqual(['costa', 'duarte']);
+      expect(got).toEqual(['bruno', 'caro']);
       expect(opt.evaluation.issues.some((i) => i.code === 'finde_xl_turno')).toBe(false);
     }
-    // Si Costa no puede ese finde, el turno pasa: no se le "fuerza" el XL.
-    const requests = [req({ residentId: 'costa', type: 'bloqueo', dates: ['2026-11-05', '2026-11-19'] })];
+    // Si Bruno no puede ese finde, el turno pasa: no se le "fuerza" el XL.
+    const requests = [req({ residentId: 'bruno', type: 'bloqueo', dates: ['2026-11-05', '2026-11-19'] })];
     const [opt] = generateOptions({ ...base, prior, requests }, { seed: 23, profiles: ['equidad'] });
-    expect(xlDays.map((d) => opt.slots.find((s) => s.date === d)?.residentId)).toContain('duarte');
+    expect(xlDays.map((d) => opt.slots.find((s) => s.date === d)?.residentId)).toContain('caro');
     expect(opt.evaluation.summary.hardCount).toBe(0);
     // Un pedido de quien ya tuvo XL igual se respeta.
-    const pedido = [req({ residentId: 'gil', type: 'pedido_fuerte', intent: 'on', dates: ['2026-11-19'] })];
+    const pedido = [req({ residentId: 'gabi', type: 'pedido_fuerte', intent: 'on', dates: ['2026-11-19'] })];
     const [opt2] = generateOptions({ ...base, prior, requests: pedido }, { seed: 24, profiles: ['equidad'] });
-    expect(opt2.slots.find((s) => s.date === '2026-11-19')?.residentId).toBe('gil');
-    expect(opt2.slots.find((s) => s.date === '2026-11-05')?.residentId).toMatch(/costa|duarte/);
+    expect(opt2.slots.find((s) => s.date === '2026-11-19')?.residentId).toBe('gabi');
+    expect(opt2.slots.find((s) => s.date === '2026-11-05')?.residentId).toMatch(/bruno|caro/);
   });
 
   it('respeta bloqueos y cumple pedidos fuertes de "quiero esta guardia"', () => {
     const requests = [
-      req({ residentId: 'bravo', type: 'bloqueo', dates: ['2026-11-06', '2026-11-07', '2026-11-08', '2026-11-14', '2026-11-15'] }),
-      req({ residentId: 'espina', type: 'pedido_fuerte', intent: 'on', dates: ['2026-11-05'] }),
-      req({ residentId: 'alba', type: 'pedido_fuerte', intent: 'on', dates: ['2026-11-07', '2026-11-21'] }),
+      req({ residentId: 'dani', type: 'bloqueo', dates: ['2026-11-06', '2026-11-07', '2026-11-08', '2026-11-14', '2026-11-15'] }),
+      req({ residentId: 'eli', type: 'pedido_fuerte', intent: 'on', dates: ['2026-11-05'] }),
+      req({ residentId: 'ana', type: 'pedido_fuerte', intent: 'on', dates: ['2026-11-07', '2026-11-21'] }),
     ];
     const [opt] = generateOptions({ ...base, requests }, { seed: 3, profiles: ['pedidos'] });
     const at = (d: string) => opt.slots.find((s) => s.date === d)?.residentId;
-    for (const d of requests[0].dates) expect(at(d)).not.toBe('bravo');
-    expect(at('2026-11-05')).toBe('espina');
-    expect([at('2026-11-07'), at('2026-11-21')]).toContain('alba');
+    for (const d of requests[0].dates) expect(at(d)).not.toBe('dani');
+    expect(at('2026-11-05')).toBe('eli');
+    expect([at('2026-11-07'), at('2026-11-21')]).toContain('ana');
     expect(opt.evaluation.summary.strongOk).toBe(opt.evaluation.summary.strongTotal);
   });
 
   it('"necesito el posguardia del 13" le asigna la guardia del 12', () => {
-    const requests = [req({ residentId: 'funes', type: 'pedido_fuerte', intent: 'posguardia', dates: ['2026-11-13'] })];
+    const requests = [req({ residentId: 'fede', type: 'pedido_fuerte', intent: 'posguardia', dates: ['2026-11-13'] })];
     const [opt] = generateOptions({ ...base, requests }, { seed: 8, profiles: ['pedidos'] });
-    expect(opt.slots.find((s) => s.date === '2026-11-12')!.residentId).toBe('funes');
+    expect(opt.slots.find((s) => s.date === '2026-11-12')!.residentId).toBe('fede');
     expect(opt.evaluation.requests[0].satisfied).toBe(true);
   });
 
   it('respeta guardias fijadas a mano y deja los slots a sortear libres', () => {
     const fixed = [
-      { date: '2026-11-01', slotIndex: 0, residentId: 'gil', locked: true },
+      { date: '2026-11-01', slotIndex: 0, residentId: 'gabi', locked: true },
       { date: '2026-11-24', slotIndex: 0, residentId: null, raffleId: 'r1' },
     ];
     const [opt] = generateOptions({ ...base, fixed }, { seed: 4, profiles: ['equidad'] });
-    expect(opt.slots.find((s) => s.date === '2026-11-01')!.residentId).toBe('gil');
+    expect(opt.slots.find((s) => s.date === '2026-11-01')!.residentId).toBe('gabi');
     const raffle = opt.slots.find((s) => s.date === '2026-11-24')!;
     expect(raffle.residentId).toBeNull();
     expect(raffle.raffleId).toBe('r1');
@@ -237,8 +237,8 @@ describe('generador', () => {
   it('la validación de un borrador marca una edición manual con poca distancia', () => {
     const [opt] = generateOptions(base, { seed: 6, profiles: ['equidad'] });
     const draft = opt.slots.map((s) => ({ ...s }));
-    draft.find((s) => s.date === '2026-11-01')!.residentId = 'alba';
-    draft.find((s) => s.date === '2026-11-02')!.residentId = 'alba';
+    draft.find((s) => s.date === '2026-11-01')!.residentId = 'ana';
+    draft.find((s) => s.date === '2026-11-02')!.residentId = 'ana';
     const ev = evaluateDraft(base, draft);
     expect(ev.issues.some((i) => i.code === 'distancia' && i.slotKey === slotKey('2026-11-02', 0))).toBe(true);
   });
@@ -282,8 +282,8 @@ describe('jueves → finde libre hasta el primer día hábil', () => {
     const input = { days: nov, residents, requests: [], rules: DEFAULT_RULES };
     const [opt] = generateOptions(input, { seed: 10, profiles: ['equidad'] });
     const draft = opt.slots.map((s) => ({ ...s }));
-    draft.find((s) => s.date === '2026-11-12')!.residentId = 'gil';
-    draft.find((s) => s.date === '2026-11-15')!.residentId = 'gil';
+    draft.find((s) => s.date === '2026-11-12')!.residentId = 'gabi';
+    draft.find((s) => s.date === '2026-11-15')!.residentId = 'gabi';
     expect(evaluateDraft(input, draft).issues.some((i) => i.code === 'finde_post_jueves')).toBe(true);
   });
 });
@@ -296,8 +296,8 @@ describe('utilidades', () => {
 
   it('próximos cumpleaños ordenados y cruzando de año', () => {
     const next = upcomingBirthdays(residents, '2026-10-12', 3);
-    expect(next.map((n) => n.resident.id)).toEqual(['espina', 'funes', 'alba']);
-    expect(next[0].date).toBe('2027-01-11');
+    expect(next.map((n) => n.resident.id)).toEqual(['eli', 'fede', 'ana']);
+    expect(next[0].date).toBe('2027-01-05');
   });
 });
 
@@ -322,20 +322,20 @@ describe('findes que cruzan de mes', () => {
   it('trabajar el dom 1/11 le saca el finde del sáb 31/10 (en octubre y en el detalle de noviembre)', () => {
     const oct = resolveMonth('2026-10', holidays, configs);
     const nov = resolveMonth('2026-11', holidays, configs);
-    const shift = (date: string) => ({ id: `${date}_0`, date, slotIndex: 0, assignedResidentId: 'gil', actualResidentId: 'gil', status: 'programada' as const, createdAt: '' });
+    const shift = (date: string) => ({ id: `${date}_0`, date, slotIndex: 0, assignedResidentId: 'gabi', actualResidentId: 'gabi', status: 'programada' as const, createdAt: '' });
     const all = [shift('2026-10-05'), shift('2026-11-01')];
     const octShifts = all.filter((s) => s.date.startsWith('2026-10'));
     // Vista de octubre: sin mirar noviembre parecería libre; con el contexto, no.
-    const sinContexto = computeEquityCounters('gil', octShifts, oct);
-    const conContexto = computeEquityCounters('gil', octShifts, oct, { context: all });
+    const sinContexto = computeEquityCounters('gabi', octShifts, oct);
+    const conContexto = computeEquityCounters('gabi', octShifts, oct, { context: all });
     expect(conContexto.findesLibresA).toBe(sinContexto.findesLibresA - 1);
     // Detalle de noviembre del generador: ese finde cuenta como del mes y no está libre.
-    const b = buildBreakdown(nov, [{ date: '2026-11-01', slotIndex: 0, residentId: 'gil' }], ['gil'], {}, { outside: { gil: ['2026-10-05'] } }).gil;
+    const b = buildBreakdown(nov, [{ date: '2026-11-01', slotIndex: 0, residentId: 'gabi' }], ['gabi'], {}, { outside: { gabi: ['2026-10-05'] } }).gabi;
     expect(b.findesDelMes).toBe(5); // 31/10–1/11, 7, 14, 21 y 28
     expect(b.findesLibres).toBe(4);
     // Acumulado: octubre ya había contado el 31/10 como libre (sin ver el 1/11); no se cuenta dos veces.
-    const prior = { gil: { ...priorFromCounters(undefined), findesLibres: 3 } };
-    const b2 = buildBreakdown(nov, [{ date: '2026-11-01', slotIndex: 0, residentId: 'gil' }], ['gil'], prior, { outside: { gil: ['2026-10-05'] } }).gil;
+    const prior = { gabi: { ...priorFromCounters(undefined), findesLibres: 3 } };
+    const b2 = buildBreakdown(nov, [{ date: '2026-11-01', slotIndex: 0, residentId: 'gabi' }], ['gabi'], prior, { outside: { gabi: ['2026-10-05'] } }).gabi;
     expect(b2.cumFindesLibres).toBe(3 - 1 + 4);
   });
 });
@@ -346,14 +346,14 @@ describe('findes enteros aunque crucen de mes', () => {
   const holSet = new Set(hol.filter((d) => d.isHoliday).map((d) => d.date));
   const oct = resolveMonth('2026-10', hol, configs);
   const nov = resolveMonth('2026-11', hol, configs);
-  const shift = (date: string, who = 'gil') => ({ id: `${date}_${who}`, date, slotIndex: 0, assignedResidentId: who, actualResidentId: who, status: 'programada' as const, createdAt: '' });
+  const shift = (date: string, who = 'gabi') => ({ id: `${date}_${who}`, date, slotIndex: 0, assignedResidentId: who, actualResidentId: who, status: 'programada' as const, createdAt: '' });
 
   it('un finde largo que cruza de mes se reconoce como largo desde los dos lados', () => {
     expect(hasTag(oct.find((d) => d.date === '2026-10-31')!, 'finde_largo')).toBe(true);
     expect(hasTag(nov.find((d) => d.date === '2026-11-02')!, 'finde_largo')).toBe(true);
-    const libre = computeEquityCounters('gil', [shift('2026-10-05')], oct, { holidays: holSet });
+    const libre = computeEquityCounters('gabi', [shift('2026-10-05')], oct, { holidays: holSet });
     expect(libre.findesLibresLargos).toBe(2); // 9–12/10 y 30/10–2/11, completos y libres
-    const sinFeriadoDeNoviembre = computeEquityCounters('gil', [shift('2026-10-05')], oct);
+    const sinFeriadoDeNoviembre = computeEquityCounters('gabi', [shift('2026-10-05')], oct);
     expect(sinFeriadoDeNoviembre.findesLibresLargos).toBe(1); // sin ver el feriado del 2/11, ese finde parecería común
   });
 
@@ -361,13 +361,13 @@ describe('findes enteros aunque crucen de mes', () => {
     for (const novShifts of [['2026-11-02'], ['2026-11-01'], ['2026-11-10'], []]) {
       const octShifts = [shift('2026-10-05'), shift('2026-10-20')];
       const all = [...octShifts, ...novShifts.map((d) => shift(d))];
-      const total = computeEquityCounters('gil', all, [...oct, ...nov], { holidays: holSet }).findesLibresA;
+      const total = computeEquityCounters('gabi', all, [...oct, ...nov], { holidays: holSet }).findesLibresA;
       // Como lo hace el generador: acumulado hasta octubre (sin ver noviembre) + detalle de noviembre.
-      const prior = { gil: priorFromCounters(computeEquityCounters('gil', octShifts, oct, { holidays: holSet })) };
-      const nb = buildBreakdown(nov, novShifts.map((d) => ({ date: d, slotIndex: 0, residentId: 'gil' })), ['gil'], prior, {
-        outside: { gil: octShifts.map((s) => s.date) },
+      const prior = { gabi: priorFromCounters(computeEquityCounters('gabi', octShifts, oct, { holidays: holSet })) };
+      const nb = buildBreakdown(nov, novShifts.map((d) => ({ date: d, slotIndex: 0, residentId: 'gabi' })), ['gabi'], prior, {
+        outside: { gabi: octShifts.map((s) => s.date) },
         holidays: holSet,
-      }).gil;
+      }).gabi;
       expect(nb.cumFindesLibres).toBe(total);
     }
   });

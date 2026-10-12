@@ -175,7 +175,7 @@ export function monthSheets({ monthKey, days, shifts, residents, rotations = [],
   ];
 }
 
-/** .ics con las guardias de todas: "Guardia R1: Alba", para importar al calendario. */
+/** .ics con las guardias de todas: "Guardia R1: Pérez", para importar al calendario. */
 export function groupIcs(shifts: Shift[], nameOf: (id: string) => string): string {
   const stamp = new Date().toISOString().replace(/[-:]/g, '').replace(/\.\d+/, '');
   const events = shifts.filter(valid).map((s) =>

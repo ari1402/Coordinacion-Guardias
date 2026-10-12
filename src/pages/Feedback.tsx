@@ -5,10 +5,11 @@ import Badge from '../components/Badge';
 import FeedbackForm from '../components/FeedbackForm';
 import { Card, Empty, PageHeader } from '../components/ui';
 import { useAuthContext } from '../context/AuthContext';
-import { useAllShifts, useFeedback } from '../hooks/data';
+import { useAdminNames, useAllShifts, useFeedback } from '../hooks/data';
 import { diffDays, shortDateLabel, todayISO } from '../lib/dates';
 
 export default function Feedback() {
+  const adminNames = useAdminNames();
   const { resident: me } = useAuthContext();
   const { shifts, loading } = useAllShifts();
   const { feedback } = useFeedback(me?.id);
@@ -37,7 +38,7 @@ export default function Feedback() {
     <div className="flex flex-col gap-4">
       <PageHeader
         title="Mis guardias"
-        subtitle="Contá cómo te fue: ¿dormiste? y carga del 1 al 10. El detalle lo ven solo Bea y Ana; las noches sin dormir se cuentan en las métricas del grupo."
+        subtitle={`Contá cómo te fue: ¿dormiste? y carga del 1 al 10. El detalle lo ven solo ${adminNames}; las noches sin dormir se cuentan en las métricas del grupo.`}
       />
       <div className="flex gap-2 flex-wrap">
         <Badge tone={pending.length ? 'warning' : 'good'}>{pending.length} sin feedback</Badge>

@@ -35,7 +35,7 @@ export function PrivateNotesEditor({ month }: { month: string }) {
         onChange={(e) => setText(e.target.value)}
         rows={3}
         className={inputCls}
-        placeholder="Ej.: martes 3 sin R1; Gil compensa sáb/preferiado de octubre…"
+        placeholder="Ej.: martes 3 sin R1; Pérez compensa sáb/preferiado de octubre…"
       />
       <span className="flex items-center gap-2">
         <button type="button" onClick={save} disabled={text.trim() === (note?.text ?? '')} className={btnSecondary}>

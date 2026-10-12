@@ -143,3 +143,11 @@ export function useOffers() {
   const { data } = useCollection<GuardiaOffer>('offers', [orderBy('date')]);
   return data;
 }
+
+/** "Ana y Bea": nombres de pila de las admins, para los textos de la app. */
+export function useAdminNames(): string {
+  const { residents } = useResidents();
+  const names = residents.filter((r) => r.role === 'admin' && r.active).map((r) => r.name.split(' ')[0]);
+  if (names.length === 0) return 'las admins';
+  return names.length === 1 ? names[0] : `${names.slice(0, -1).join(', ')} y ${names.at(-1)}`;
+}

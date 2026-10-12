@@ -4,8 +4,8 @@ on:
   schedule:
     - cron: '0 11 * * *' # 08:00 en Argentina (UTC-3). GitHub puede demorarlo unos minutos.
   # Un push que toca este archivo manda solo un aviso de prueba (no la corrida
-  # diaria) a la residente de TEST_PUSH_DEFAULT. Para repetir la prueba alcanza
-  # con cambiar el número de abajo.
+  # diaria) a quienes tienen tildado "Aviso del día 10" en Admin → Residentes.
+  # Para repetir la prueba alcanza con cambiar el número de abajo.
   # prueba: 2
   push:
     branches: [claude/guardias-firebase-webapp-0vgyas]
@@ -24,11 +24,6 @@ on:
 permissions:
   contents: read
 
-env:
-  TEST_PUSH_DEFAULT: residente@example.com
-  # A quién avisar el día 10 que toca generar las guardias (mails separados por coma).
-  GENERAR_AVISO_A: residente@example.com
-
 jobs:
   send:
     runs-on: ubuntu-latest
@@ -45,4 +40,5 @@ jobs:
           SMTP_USER: ${{ secrets.SMTP_USER }}
           SMTP_PASS: ${{ secrets.SMTP_PASS }}
           DRY_RUN: ${{ inputs.dry_run && 'true' || 'false' }}
-          TEST_TO: ${{ inputs.test_to || (github.event_name == 'push' && env.TEST_PUSH_DEFAULT) || '' }}
+          TEST_TO: ${{ inputs.test_to || '' }}
+          TEST_AVISADAS: ${{ github.event_name == 'push' && 'true' || 'false' }}

@@ -8,8 +8,8 @@
 // "realizada" las guardias ya pasadas. Igual, al entrar a la app, el Inicio
 // muestra el feedback pendiente.
 // El día 8 de cada mes, además, avisa a todas que carguen los pedidos del mes
-// siguiente, y el 10 le avisa a quien genera las guardias (GENERAR_AVISO_A,
-// uno o más mails separados por coma) que toca generarlas.
+// siguiente, y el 10 les avisa que toca generarlas a quienes tienen tildado
+// "Aviso del día 10" en Admin → Residentes.
 //
 // Variables de entorno (secrets del repo):
 //   FIREBASE_SERVICE_ACCOUNT  JSON de la cuenta de servicio de Firebase
@@ -17,6 +17,7 @@
 //   APP_URL                   (opcional) URL pública de la app
 //   DRY_RUN=true              muestra a quién avisaría, sin mandar ni escribir
 //   TEST_TO=mail@…            manda SOLO un aviso de prueba a esa residente
+//   TEST_AVISADAS=true        manda SOLO un aviso de prueba a quienes tienen el aviso del día 10
 //                             (push a sus dispositivos + mail si hay Gmail)
 
 import { cert, initializeApp } from 'firebase-admin/app';
@@ -52,7 +53,7 @@ function mailHtml(name, shiftId, date) {
   <p style="font-size:15px;margin-bottom:6px">¿Pudiste dormir?</p>
   <p>${btn(feedbackUrl(shiftId, 1), '😴 Sí, dormí', '#1a9e72')}${btn(feedbackUrl(shiftId, 0), '🥱 No dormí', '#d6435a')}</p>
   <p style="font-size:14px;color:#6b6d85">Se abre la app con tu respuesta: ahí elegís la carga de la guardia del 1 al 10 y listo.
-  El detalle lo ven solo Bea y Ana.</p>
+  El detalle lo ven solo las admins.</p>
 </div>`;
 }
 
@@ -96,16 +97,20 @@ async function remind(resident, shiftId, date, { test = false } = {}) {
   return { pushed, mailed };
 }
 
-if (TEST_TO) {
-  const snap = await db.collection('residents').where('email', '==', TEST_TO).limit(1).get();
+const avisadas = () => db.collection('residents').where('avisoGenerar', '==', true).get();
+
+if (TEST_TO || process.env.TEST_AVISADAS === 'true') {
+  const snap = TEST_TO ? await db.collection('residents').where('email', '==', TEST_TO).limit(1).get() : await avisadas();
   if (snap.empty) {
-    console.log(`::error::No hay ninguna residente con el mail ${TEST_TO}.`);
-    process.exit(1);
+    console.log(TEST_TO ? '::error::No hay ninguna residente con ese mail.' : '::warning::Nadie tiene tildado "Aviso del día 10" en Admin → Residentes.');
+    process.exit(TEST_TO ? 1 : 0);
   }
-  const resident = { id: snap.docs[0].id, ...snap.docs[0].data() };
-  const { pushed, mailed } = await remind(resident, 'prueba', yesterday, { test: true });
-  if (pushed === 0 && !mailed) {
-    console.log(`::warning::${resident.name} todavía no activó las notificaciones en ningún dispositivo (Inicio o Mi cuenta → Activar notificaciones).`);
+  for (const d of snap.docs) {
+    const resident = { id: d.id, ...d.data() };
+    const { pushed, mailed } = await remind(resident, 'prueba', yesterday, { test: true });
+    if (pushed === 0 && !mailed) {
+      console.log(`::warning::${resident.shortName} todavía no activó las notificaciones en ningún dispositivo.`);
+    }
   }
   process.exit(0);
 }
@@ -154,20 +159,14 @@ if (todayAR.slice(8) === '08') {
 
 // Día 10: generar las guardias del mes siguiente.
 if (todayAR.slice(8) === '10') {
-  const emails = (process.env.GENERAR_AVISO_A || '').split(',').map((e) => e.trim().toLowerCase()).filter(Boolean);
-  for (const email of emails) {
-    const snap = await db.collection('residents').where('email', '==', email).limit(1).get();
-    if (snap.empty) {
-      console.log(`::warning::GENERAR_AVISO_A: no hay residente con el mail ${email}.`);
-      continue;
-    }
-    const n = await push(snap.docs[0].id, {
+  for (const d of (await avisadas()).docs) {
+    const n = await push(d.id, {
       title: `✨ Hoy toca generar las guardias de ${monthLabel(nextMonth)}`,
       body: 'Los pedidos ya están cargados. Abrí el generador.',
       url: `${APP_URL}#/admin/generador?mes=${nextMonth}`,
       tag: `generar-${nextMonth}`,
     });
-    console.log(`Aviso de generar ${nextMonth} → ${email}: ${n} push.`);
+    console.log(`Aviso de generar ${nextMonth} → ${d.get('shortName')}: ${n} push.`);
   }
 }
 

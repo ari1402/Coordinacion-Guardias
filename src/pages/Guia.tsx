@@ -2,6 +2,7 @@ import type { ReactNode } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
 import { PageHeader, Segmented } from '../components/ui';
 import { useAuthContext } from '../context/AuthContext';
+import { useAdminNames } from '../hooks/data';
 
 type Tab = 'todas' | 'admin';
 
@@ -29,6 +30,7 @@ const Go = ({ to, children }: { to: string; children: ReactNode }) => (
 );
 
 function GuiaTodas() {
+  const admins = useAdminNames();
   return (
     <div className="flex flex-col gap-3">
       <Section icon="👋" title="Primeros pasos (2 minutos)" open>
@@ -64,11 +66,11 @@ function GuiaTodas() {
             dos días.
           </li>
           <li>
-            <b>Día 10:</b> Bea y Ana generan las guardias. Lo que no esté cargado para ese día no se tiene en cuenta.
+            <b>Día 10:</b> {admins} generan las guardias. Lo que no esté cargado para ese día no se tiene en cuenta.
           </li>
           <li>
             <b>Cuando se publican:</b> te llega un aviso. <b>Pedí tus guardias en HIBA 2</b> y en el Inicio contestá si estás OK
-            con las que te tocaron. Si ponés que no, escribí qué necesitás: les llega a Bea y Ana para corregirlo.
+            con las que te tocaron. Si ponés que no, escribí qué necesitás: les llega a {admins} para corregirlo.
           </li>
           <li>
             <b>Después de cada guardia:</b> a las 8 AM te llega el recordatorio para el feedback.
@@ -128,7 +130,7 @@ function GuiaTodas() {
             <Go to="/feedback">Mis guardias</Go>.
           </li>
           <li>
-            El detalle (carga y comentario) <b>solo lo ven Bea y Ana</b>. Lo único visible para todas es si dormiste o no
+            El detalle (carga y comentario) <b>solo lo ven {admins}</b>. Lo único visible para todas es si dormiste o no
             (para contar las noches sin dormir).
           </li>
           <li>Sirve para repartir mejor: muestra qué días son más pesados.</li>

@@ -5,7 +5,7 @@ import { resolveMonth } from './dates';
 import { monthSheets } from './exportMonth';
 import { buildXlsx, colName } from './xlsx';
 
-const residents: Resident[] = ['Alba', 'Bravo', 'Costa'].map((n, i) => ({
+const residents: Resident[] = ['Ana', 'Dani', 'Bruno'].map((n, i) => ({
   id: `r${i}`, name: n, shortName: n, email: '', role: 'resident', active: true,
 }));
 const configs: MonthConfig[] = [{ id: '2026-11', weekdayRequirements: { mon: 1, tue: 1, wed: 1, thu: 1, fri: 1, sat: 1, sun: 1 } }];

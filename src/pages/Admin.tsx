@@ -7,7 +7,7 @@ import { Card, Dot, Empty, Modal, MonthNav, PageHeader, Segmented, btnPrimary, b
 import { downloadAllJson, downloadAllXlsx, fetchAll } from '../lib/exportAll';
 import { openBackup, type OpenedBackup } from '../lib/backupOpen';
 import { db } from '../firebase';
-import { useAcks, useActivity, useCalendarData, useFeedback, usePublications, usePushTokens, useResidents, useResidentsById } from '../hooks/data';
+import { useAcks, useActivity, useAdminNames, useCalendarData, useFeedback, usePublications, usePushTokens, useResidents, useResidentsById } from '../hooks/data';
 import { AckAlerts } from '../components/Conformidad';
 import { PrivateNotesEditor } from '../components/PrivateNotes';
 import { useAuthContext } from '../context/AuthContext';
@@ -40,13 +40,14 @@ const RULE_LABELS: Record<string, string> = {
 };
 
 export default function Admin() {
+  const adminNames = useAdminNames();
   const [params, setParams] = useSearchParams();
   const tab = (params.get('tab') as Tab) || 'reglas';
   return (
     <div className="flex flex-col gap-4">
       <PageHeader
         title="Admin"
-        subtitle="Solo Bea Bravo y Ana Alba ven esta sección."
+        subtitle={`Solo ${adminNames} ven esta sección.`}
         actions={
           <>
             <Segmented<Tab>
@@ -405,6 +406,7 @@ function ResidentRow({ resident, color }: { resident: Resident; color: string })
   const [bday, setBday] = useState(resident.birthday ? `${resident.birthday.slice(3)}/${resident.birthday.slice(0, 2)}` : '');
   const [role, setRole] = useState<Role>(resident.role);
   const [active, setActive] = useState(resident.active);
+  const [avisoGenerar, setAvisoGenerar] = useState(!!resident.avisoGenerar);
   const [saved, setSaved] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -419,11 +421,12 @@ function ResidentRow({ resident, color }: { resident: Resident; color: string })
       }
       birthday = `${m[2].padStart(2, '0')}-${m[1].padStart(2, '0')}`;
     }
-    await updateDoc(doc(db, 'residents', resident.id), { name, shortName, role, active, birthday });
+    await updateDoc(doc(db, 'residents', resident.id), { name, shortName, role, active, birthday, avisoGenerar });
     await logActivity({
       entity: 'residente',
       summary: `Editó el perfil de ${resident.shortName}`,
-      changes: diffFields(resident as unknown as Record<string, unknown>, { name, shortName, role, active, birthday }, {
+      changes: diffFields(resident as unknown as Record<string, unknown>, { name, shortName, role, active, birthday, avisoGenerar }, {
+        avisoGenerar: 'Aviso del día 10',
         name: 'Nombre',
         shortName: 'Corto',
         role: 'Rol',
@@ -459,6 +462,12 @@ function ResidentRow({ resident, color }: { resident: Resident; color: string })
           <option value="admin">admin</option>
         </select>
       </label>
+      {role === 'admin' && (
+        <label className="text-xs text-text-dim flex items-center gap-1.5 pb-2.5" title="Push el día 10: toca generar las guardias (y los avisos de prueba)">
+          <input type="checkbox" checked={avisoGenerar} onChange={(e) => setAvisoGenerar(e.target.checked)} />
+          Aviso del día 10
+        </label>
+      )}
       <label className="text-xs text-text-dim flex items-center gap-1.5 pb-2.5">
         <input type="checkbox" checked={active} onChange={(e) => setActive(e.target.checked)} /> activa
       </label>

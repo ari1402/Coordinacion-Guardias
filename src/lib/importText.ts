@@ -17,16 +17,11 @@ const MONTHS: Record<string, number> = {
 
 const WEEKDAYS = /\b(lunes|martes|miercoles|jueves|viernes|sabado|domingo|lun|mar|mie|jue|vie|sab|dom)\b\.?/g;
 
-const NICKNAMES: Record<string, string> = {
-  bea: 'bea',
-  ana: 'ana',
-  pau: 'gabi',
-  carla: 'carla',
-  vale: 'dana',
-  fede: 'fede',
-  ste: 'eli',
-  eli: 'eli',
-};
+// Palabras que no pueden ser apodos (días, meses y conectores).
+const RESERVED = new Set([
+  'lun', 'mar', 'mie', 'jue', 'vie', 'sab', 'dom', 'ene', 'feb', 'abr', 'may', 'jun', 'jul', 'ago', 'sep', 'sept',
+  'oct', 'nov', 'dic', 'sin', 'con', 'del', 'las', 'los', 'una', 'uno',
+]);
 
 function norm(s: string): string {
   return s
@@ -42,20 +37,32 @@ function aliasesFor(r: Resident): string[] {
   const full = norm(r.name);
   const out = new Set<string>([norm(r.shortName), full, full.split(' ').slice(1).join(' ')]);
   for (const w of norm(r.name).split(' ')) if (w.length >= 3 && !['de', 'del', 'di', 'la'].includes(w)) out.add(w);
-  for (const [nick, target] of Object.entries(NICKNAMES)) if (out.has(target)) out.add(nick);
-  return [...out].filter(Boolean);
+  // Apodos del nombre de pila: el principio del nombre y su diminutivo con "i"
+  // (Valentina → vale, Florencia → flor, Martina → marti, Juan → juani).
+  const first = full.split(' ')[0] ?? '';
+  for (let n = 3; n <= first.length; n++) {
+    const p = first.slice(0, n);
+    if (n < first.length) out.add(p);
+    if (n >= 3) out.add(`${p}i`);
+  }
+  return [...out].filter((a) => a && !RESERVED.has(a));
 }
 
 /**
  * Interpreta un cronograma escrito a mano o pegado de un chat. Una guardia
- * por línea: "1/11 Funes", "2026-11-07 Alba", "Sábado 7: Alba, Bravo",
- * "3/11 sin R1". Si la línea no trae mes, se usa `monthKey`.
+ * por línea: "1/11 Pérez", "2026-11-07 Gómez", "Sábado 7: Pérez, Gómez",
+ * "3/11 sin R1". Si la línea no trae mes, se usa `monthKey`. Reconoce nombres
+ * cortos, apellidos y apodos del nombre de pila (Vale, Flor, Juani…).
  */
 export function parseScheduleText(text: string, monthKey: string, residents: Resident[]): ParsedLine[] {
   const [defYear, defMonth] = monthKey.split('-').map(Number);
   const aliases = residents
     .flatMap((r) => aliasesFor(r).map((a) => ({ alias: a, id: r.id })))
     .sort((a, b) => b.alias.length - a.alias.length);
+  // Un apodo que le sirve a más de una persona es ambiguo: no se usa.
+  const owners = new Map<string, Set<string>>();
+  for (const { alias, id } of aliases) owners.set(alias, (owners.get(alias) ?? new Set()).add(id));
+  const unique = aliases.filter(({ alias }) => owners.get(alias)!.size === 1);
 
   const out: ParsedLine[] = [];
   text.split(/\r?\n/).forEach((raw, i) => {
@@ -96,7 +103,7 @@ export function parseScheduleText(text: string, monthKey: string, residents: Res
       return;
     }
     let rest = ` ${s} `;
-    for (const { alias, id } of aliases) {
+    for (const { alias, id } of unique) {
       const re = new RegExp(`(^|\\s)${alias.replace(/[-/]/g, '\\$&')}(?=\\s|$)`);
       if (re.test(rest)) {
         if (!res.residentIds.includes(id)) res.residentIds.push(id);

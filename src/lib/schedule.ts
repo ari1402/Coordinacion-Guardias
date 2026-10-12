@@ -58,7 +58,7 @@ export interface PublishPlan {
   upserts: Shift[];
   deletes: string[];
   changed: number;
-  /** "jue 5/11: Alba → Bravo" por cada guardia que cambia (para el historial). */
+  /** "jue 5/11: Pérez → Gómez" por cada guardia que cambia (para el historial). */
   changes: string[];
   /** Residentes a quienes les cambia alguna guardia (tienen que volver a confirmar). */
   affected: string[];

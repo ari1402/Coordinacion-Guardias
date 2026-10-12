@@ -18,7 +18,7 @@ https://ari1402.github.io/Coordinacion-Guardias/
 | **Cambios** | Intercambios y deudas. Las métricas cuentan a quien realmente hizo la guardia. |
 | **Sorteos** | Aleatorios con el generador criptográfico del navegador; el resultado queda guardado y no se puede volver a sortear ni borrar. |
 | **Camada** | Tareas (pendiente / en curso / hecha, con responsables y fecha), Info (AAARBA, cursos, rotaciones…), Links con etiquetas y buscador. |
-| **Admin** (Bea y Ana) | Reglas de cada mes, feriados oficiales, residentes y cumpleaños, feedback completo, y el **Generador**. |
+| **Admin** | Reglas de cada mes, feriados oficiales, residentes y cumpleaños, feedback completo, y el **Generador**. |
 
 ### Generador
 
@@ -32,7 +32,7 @@ https://ari1402.github.io/Coordinacion-Guardias/
 - Editor por guardia: cambiar a mano (queda fijada 🔒 y regenerar no la toca),
   marcar una guardia para **sortear** entre quienes elijas 🎲, guardar borrador y publicar.
 - **Importar desde texto**: pegá o subí un .txt con una guardia por línea
-  (`1/11 Funes`, `Sábado 7: Alba`, `3/11 sin R1`…) y se carga en el editor.
+  (`1/11 Pérez`, `Sábado 7: Gómez`, `3/11 sin R1`…) y se carga en el editor.
 - Reglas por mes (R1 por día de semana, distancias, tope, acuerdos internos):
   si un mes no tiene reglas, **hereda** las del último mes configurado.
 
@@ -109,8 +109,7 @@ Scripts de mantenimiento (usan `FIREBASE_SERVICE_ACCOUNT` o
 `scripts/serviceAccountKey.json`, que está en `.gitignore`):
 
 - `npm run deploy:rules` — publica `firestore.rules`.
-- `npm run migrate` — migración v2 (nombres, cumpleaños, esquema de marzo 2027). Corre una sola vez.
-- `npm run seed` — carga inicial desde cero (residentes + octubre 2026).
+- `npm run migrate` — migración pendiente (corre una sola vez; las anteriores ya se aplicaron).
 
 ## Código
 
@@ -124,7 +123,7 @@ src/lib/
   schedule.ts    borradores y publicación del cronograma
 src/pages/       una página por sección
 firestore.rules  quién puede leer/escribir qué (residentes dados de alta, admins, autor del feedback…)
-scripts/         seed, migración, reglas, mail diario
+scripts/         migración, reglas, avisos, copia de seguridad
 ```
 
 La config de Firebase en `src/firebase.ts` no es secreta (viaja igual en el
