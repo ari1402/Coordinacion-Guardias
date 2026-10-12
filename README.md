@@ -56,11 +56,15 @@ cronograma. React + Firebase (Auth, Firestore, Hosting).
 ```bash
 npm run dev        # local, con hot reload
 npm run build       # typecheck + build de producción a dist/
-npx firebase-tools deploy --only hosting,firestore  # publicar
+npx firebase-tools deploy --only hosting,firestore  # publicar (requiere `firebase login` antes)
 ```
 
-Si es la primera vez que usás `firebase-tools` en esta máquina: `npx
-firebase-tools login` antes del deploy.
+Si el service account del Admin SDK no tiene permisos de **Service Usage**
+(es el caso del que crea Firebase por default), `firebase deploy --only
+firestore` falla con un 403 al chequear si la API está habilitada. Para ese
+caso, `npm run deploy:rules` publica `firestore.rules` directamente contra la
+Firebase Rules API usando `scripts/serviceAccountKey.json` (sin pasar por ese
+chequeo) — necesita el mismo archivo que usa `npm run seed`.
 
 ## Estructura del código
 

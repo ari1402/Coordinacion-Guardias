@@ -1,4 +1,4 @@
-import { signInWithEmailAndPassword } from 'firebase/auth';
+import { sendPasswordResetEmail, signInWithEmailAndPassword } from 'firebase/auth';
 import { useState } from 'react';
 import { auth } from '../firebase';
 
@@ -6,16 +6,36 @@ export default function Login() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState<string | null>(null);
+  const [resetMessage, setResetMessage] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     setError(null);
+    setResetMessage(null);
     setSubmitting(true);
     try {
       await signInWithEmailAndPassword(auth, email.trim(), password);
     } catch {
       setError('Email o contraseña incorrectos.');
+    } finally {
+      setSubmitting(false);
+    }
+  }
+
+  async function handleForgotPassword() {
+    if (!email.trim()) {
+      setError('Escribí tu email arriba y después tocá "Olvidé mi contraseña".');
+      return;
+    }
+    setError(null);
+    setResetMessage(null);
+    setSubmitting(true);
+    try {
+      await sendPasswordResetEmail(auth, email.trim());
+      setResetMessage('Te mandamos un email para elegir tu contraseña. Revisá spam si no lo ves.');
+    } catch {
+      setResetMessage('Si ese email tiene una cuenta creada, te va a llegar el link para elegir contraseña.');
     } finally {
       setSubmitting(false);
     }
@@ -51,12 +71,21 @@ export default function Login() {
             />
           </label>
           {error && <p className="text-sm text-danger">{error}</p>}
+          {resetMessage && <p className="text-sm text-ok">{resetMessage}</p>}
           <button
             type="submit"
             disabled={submitting}
             className="mt-2 rounded-lg bg-accent text-accent-contrast py-2 font-medium disabled:opacity-60"
           >
             {submitting ? 'Ingresando…' : 'Ingresar'}
+          </button>
+          <button
+            type="button"
+            onClick={handleForgotPassword}
+            disabled={submitting}
+            className="text-sm text-text-dim underline disabled:opacity-60"
+          >
+            Olvidé mi contraseña / es la primera vez que entro
           </button>
         </form>
       </div>

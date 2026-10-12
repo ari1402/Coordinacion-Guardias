@@ -204,7 +204,7 @@ export default function Admin() {
       <p className="text-xs text-text-dim">
         Para crear cuentas nuevas: creá el usuario en Firebase Authentication (Console) y después un
         documento en <code className="bg-surface-2 px-1 rounded">residents/&#123;uid&#125;</code> con su
-        nombre, email, color y rol.
+        nombre, email y rol (el color del calendario/gráficos se asigna solo).
       </p>
     </div>
   );
