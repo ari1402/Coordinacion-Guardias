@@ -36,6 +36,7 @@ import {
   generateOptions,
   priorFromCounters,
   slotKey,
+  xlPriority,
   type GeneratedOption,
   type Issue,
   type ScheduleInput,
@@ -250,6 +251,13 @@ export default function Generador() {
   }, [days, monthRequests, active, onVacation]);
 
   const leading = days[0]?.weekday ?? 0;
+  const xlRanking = useMemo(() => {
+    const xlDays = days.filter((d) => d.tags.includes('finde_xl') && d.requiredR1 > 0);
+    if (!xlDays.length) return null;
+    const away = new Set(onVacation.map((r) => r.id));
+    const ids = active.map((r) => r.id).filter((id) => !away.has(id));
+    return { days: xlDays.map((d) => shortDateLabel(d.date)).join(', '), order: xlPriority(prior, ids).slice(0, 3) };
+  }, [days, active, onVacation, prior]);
 
   return (
     <div>
@@ -356,6 +364,21 @@ export default function Generador() {
             title={`Editor — ${monthLabel(monthKey)}`}
             subtitle="Cambiar una guardia a mano la fija (🔒) para que regenerar no la toque. 🚫 = la toma otra persona (p. ej. residente mayor). ⛔ no puede · 🙅 pidió no estar · 🙋 pidió estar (o necesita el posguardia) · 🎂 cumple."
           >
+            {xlRanking && (
+              <p className="text-sm bg-accent-soft rounded-lg px-3 py-2 mb-3">
+                🌟 Findes XL del mes: <b>{xlRanking.days}</b>. Van primero a quien termina el mes con más carga
+                (guardias, sábados/preferiados, feriados, findes, noches sin dormir) y menos findes XL; los pedidos
+                mandan. Hasta el mes pasado vienen con más carga:{' '}
+                {xlRanking.order.map((x, i) => (
+                  <span key={x.residentId}>
+                    {i > 0 && ' · '}
+                    <b>{nameOf(x.residentId)}</b>
+                    <span className="text-text-dim"> ({x.burden >= 0 ? '+' : ''}{x.burden.toFixed(1)} carga, {x.xl} XL)</span>
+                  </span>
+                ))}
+                .
+              </p>
+            )}
             {onVacation.length > 0 && (
               <p className="text-sm bg-warn-soft text-warn rounded-lg px-3 py-2 mb-3">
                 🏖️ De vacaciones este mes (según los carriles): <b>{onVacation.map((r) => r.shortName).join(', ')}</b>. El

@@ -35,6 +35,9 @@ interface Weights {
   offSoft: number;
   onStrong: number;
   onSoft: number;
+  /** Premio por darle el finde XL / jueves feliz a quien viene con más carga. */
+  xlComp: number;
+  felizComp: number;
 }
 
 const BASE: Weights = {
@@ -55,13 +58,15 @@ const BASE: Weights = {
   offSoft: 80,
   onStrong: 400,
   onSoft: 80,
+  xlComp: 60,
+  felizComp: 20,
 };
 
 export const PROFILES: Record<ProfileId, { label: string; description: string; weights: Weights }> = {
   equidad: {
     label: 'Máxima equidad',
     description: 'Prioriza repartir parejo con el acumulado: totales, sábados/preferiados, feriados y findes.',
-    weights: { ...BASE, total: 80, sabPref: 60, feriado: 40, xl: 30, findeTotal: 20 },
+    weights: { ...BASE, total: 80, sabPref: 60, feriado: 40, xl: 30, findeTotal: 20, xlComp: 100, felizComp: 30 },
   },
   pedidos: {
     label: 'Máximo respeto de pedidos',
@@ -87,7 +92,7 @@ const CATS = ['total', 'sabPref', 'feriado', 'viernes', 'domingo', 'findeTotal',
 type Cat = (typeof CATS)[number];
 
 /** Acumulado previo al mes que se genera (para que un mes compense al anterior). */
-export type PriorCounts = Record<Cat, number> & { lastShiftDate?: string };
+export type PriorCounts = Record<Cat, number> & { lastShiftDate?: string; sinDormir?: number };
 
 export function priorFromCounters(c: EquityCounters | undefined, lastShiftDate?: string): PriorCounts {
   return {
@@ -99,8 +104,41 @@ export function priorFromCounters(c: EquityCounters | undefined, lastShiftDate?:
     findeTotal: c?.findeTotal ?? 0,
     xl: c?.findesXL ?? 0,
     jueves: c?.juevesFelices ?? 0,
+    sinDormir: c?.sinDormir ?? 0,
     lastShiftDate,
   };
+}
+
+/**
+ * Cuánta carga trae cada una respecto del promedio del grupo. Se usa para
+ * decidir a quién le corresponde un beneficio (finde XL, jueves feliz):
+ * primero a quien viene con más guardias, sábados/preferiados, feriados,
+ * findes y noches sin dormir. Los pedidos siguen pesando más.
+ */
+export const BURDEN_WEIGHTS = { total: 1, sabPref: 1.5, feriado: 1, findeTotal: 0.5, sinDormir: 0.5 } as const;
+
+export function burdenScores(counts: { total: number; sabPref: number; feriado: number; findeTotal: number; sinDormir: number }[]): number[] {
+  const n = counts.length || 1;
+  const keys = Object.keys(BURDEN_WEIGHTS) as (keyof typeof BURDEN_WEIGHTS)[];
+  const mean = Object.fromEntries(keys.map((k) => [k, counts.reduce((a, c) => a + c[k], 0) / n])) as Record<(typeof keys)[number], number>;
+  // Con tope: el premio máximo (100 × 3) queda por debajo de un pedido fuerte (400).
+  return counts.map((c) => Math.max(-3, Math.min(3, keys.reduce((a, k) => a + BURDEN_WEIGHTS[k] * (c[k] - mean[k]), 0))));
+}
+
+/** Orden de prioridad para el próximo finde XL según el acumulado previo (para mostrar). */
+export function xlPriority(prior: Record<string, PriorCounts>, ids: string[]) {
+  const counts = ids.map((id) => prior[id] ?? priorFromCounters(undefined));
+  const burden = burdenScores(counts.map((c) => ({ ...c, sinDormir: c.sinDormir ?? 0 })));
+  const meanXl = counts.reduce((a, c) => a + c.xl, 0) / (counts.length || 1);
+  return ids
+    .map((id, i) => ({
+      residentId: id,
+      burden: burden[i],
+      xl: counts[i].xl,
+      // mismo balance que usa el costo: más carga suma, más findes XL ya hechos resta
+      score: BASE.xlComp * burden[i] - 2 * BASE.xl * (counts[i].xl - meanXl),
+    }))
+    .sort((a, b) => b.score - a.score);
 }
 
 export interface ScheduleInput {
@@ -538,6 +576,20 @@ function run(p: Problem, assign: Int16Array, W: Weights, out: Collector | null):
     for (let r = 0; r < nR; r++) v += (p.prior[r][cat] + month[r][cat] - mean) ** 2;
     cost += W[cat] * v;
   }
+
+  // Beneficios (finde XL, jueves feliz) para quien viene con más carga. La
+  // carga se mide sin contar esos mismos jueves, así no conviene sumarle
+  // guardias a nadie para "justificarle" el beneficio.
+  const burden = burdenScores(
+    month.map((m, r) => ({
+      total: p.prior[r].total + m.total - m.xl - m.jueves,
+      sabPref: p.prior[r].sabPref + m.sabPref,
+      feriado: p.prior[r].feriado + m.feriado,
+      findeTotal: p.prior[r].findeTotal + m.findeTotal,
+      sinDormir: p.prior[r].sinDormir ?? 0,
+    })),
+  );
+  for (let r = 0; r < nR; r++) cost -= W.xlComp * month[r].xl * burden[r] + W.felizComp * month[r].jueves * burden[r];
 
   for (let r = 0; r < nR; r++) {
     if (p.rules.avoidSameWeekday) {
