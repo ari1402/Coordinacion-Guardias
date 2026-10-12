@@ -43,6 +43,21 @@ for (const y of [year, year + 1]) {
     await ref.set({ id: h.date, date: h.date, isHoliday: true, holidayName: h.name, holidaySource: h.source }, { merge: true });
     written++;
   }
+
+  // Un trasladable que el gobierno movió de fecha deja de ser feriado en la
+  // fecha vieja (solo los que cargó esta sincronización, no los manuales).
+  const official = new Set(list.map((h) => h.date));
+  const stale = await db
+    .collection('calendarDays')
+    .where('holidaySource', '==', 'oficial')
+    .where('isHoliday', '==', true)
+    .get();
+  for (const doc of stale.docs) {
+    if (doc.id.startsWith(`${y}-`) && !official.has(doc.id)) {
+      await doc.ref.update({ isHoliday: false, holidayName: `${doc.data().holidayName ?? ''} (trasladado)` });
+      console.log(`  ${doc.id} ya no figura como feriado oficial: desmarcado`);
+    }
+  }
   console.log(`${y}: ${list.length} feriados`);
 }
 
