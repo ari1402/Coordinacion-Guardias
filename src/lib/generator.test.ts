@@ -140,6 +140,25 @@ describe('generador', () => {
     }
   });
 
+  it('los feriados van por turnos: nadie repite hasta que todas tengan uno', () => {
+    const feriados = nov.filter((d) => d.isHoliday).map((d) => d.date);
+    expect(feriados).toEqual(['2026-11-09', '2026-11-10', '2026-11-23']);
+    const prior = Object.fromEntries(
+      residents.map((r) => [
+        r.id,
+        { ...priorFromCounters(undefined), total: 8, sabPref: 2, feriado: 1, findeTotal: 3, xl: 1, jueves: 1, lastShiftDate: '2026-10-20' },
+      ]),
+    );
+    // Bravo, Gil y Espina todavía no hicieron feriado.
+    for (const id of ['bravo', 'gil', 'espina']) prior[id] = { ...prior[id], feriado: 0 };
+    for (const seed of [51, 52, 53]) {
+      const [opt] = generateOptions({ ...base, prior }, { seed, profiles: ['equidad'] });
+      const got = feriados.map((d) => opt.slots.find((s) => s.date === d)?.residentId).sort();
+      expect(got).toEqual(['bravo', 'espina', 'gil']);
+      expect(opt.evaluation.issues.some((i) => i.code === 'feriado_turno')).toBe(false);
+    }
+  });
+
   it('el finde XL va por turnos: primero quien todavía no tuvo, aunque otra tenga más carga', () => {
     // (entre quienes empatan en el turno, el orden es al azar)
     const xlDays = ['2026-11-05', '2026-11-19'];

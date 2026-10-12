@@ -158,6 +158,10 @@ function GuiaTodas() {
         </p>
         <ul>
           <li>Reparte parejo: guardias totales, sábados y preferiados, feriados, viernes y domingos.</li>
+          <li>
+            <b>Feriados por turnos:</b> nadie hace un segundo feriado hasta que todas hayan hecho uno (24/12 y 31/12 cuentan
+            como feriado).
+          </li>
           <li>Nadie hace guardia el día de su cumple ni el anterior, ni en el mes de vacaciones de su carril.</li>
           <li>Respeta la distancia mínima entre guardias.</li>
           <li>Si hacés guardia un jueves, ese finde queda libre hasta el primer día hábil.</li>
