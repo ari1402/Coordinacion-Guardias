@@ -1,3 +1,4 @@
+import { createPrivateKey } from 'node:crypto';
 import { readFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -23,16 +24,22 @@ export function loadServiceAccount() {
     }
   }
 
-  // Al copiar y pegar, los saltos de línea de la clave a veces quedan como
-  // el texto "\n" (o con \r de Windows): se normalizan acá.
-  const key = String(sa.private_key ?? '')
-    .replace(/\\n/g, '\n')
-    .replace(/\r/g, '')
-    .trim();
-  if (!key.startsWith('-----BEGIN PRIVATE KEY-----') || !key.endsWith('-----END PRIVATE KEY-----')) {
-    fail('La clave privada del secret está incompleta o modificada: copiá el archivo JSON tal cual lo bajaste de Firebase.');
+  // Al copiar y pegar (sobre todo desde un chat), la clave puede llegar con
+  // "\n" literales, saltos de Windows o espacios metidos en el medio. Se
+  // reconstruye el PEM con solo los caracteres base64 y se valida.
+  const raw = String(sa.private_key ?? '').replace(/\\n/g, '\n');
+  const m = raw.match(/-----BEGIN PRIVATE KEY-----([\s\S]*?)-----END PRIVATE KEY-----/);
+  if (!m) fail('La clave privada del secret está incompleta: copiá el archivo JSON tal cual lo bajaste de Firebase.');
+  const body = m[1].replace(/[^A-Za-z0-9+/=]/g, '');
+  sa.private_key = `-----BEGIN PRIVATE KEY-----\n${body.match(/.{1,64}/g).join('\n')}\n-----END PRIVATE KEY-----\n`;
+  try {
+    createPrivateKey(sa.private_key);
+  } catch {
+    fail(
+      `La clave privada del secret está dañada (${body.length} caracteres útiles; una clave de Firebase tiene 1624). ` +
+        'Reemplazá el secret pegando el contenido del archivo .json descargado de Firebase, abierto con un editor de texto.',
+    );
   }
-  sa.private_key = `${key}\n`;
   return sa;
 }
 
