@@ -11,7 +11,8 @@
     "test": "vitest run",
     "seed": "node scripts/seed.mjs",
     "deploy:rules": "node scripts/deploy-rules.mjs",
-    "migrate": "node scripts/migrate-v2.mjs"
+    "migrate": "node scripts/migrate-v2.mjs",
+    "sync:holidays": "node scripts/sync-holidays.mjs"
   },
   "dependencies": {
     "clsx": "^2.1.1",

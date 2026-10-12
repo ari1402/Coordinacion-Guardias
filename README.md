@@ -68,9 +68,10 @@ Se manda desde una cuenta de Gmail:
 
 ### 3. Feriados
 
-Admin → Reglas del mes → **Importar** feriados oficiales del año (Ministerio del
-Interior vía ArgentinaDatos + Día de la Sanidad). Revisá la tabla del mes y
-destildá lo que no aplique al hospital.
+Se sincronizan solos en cada publicación (año actual y siguiente: Ministerio
+del Interior vía ArgentinaDatos + Día de la Sanidad). También se pueden
+importar desde Admin → Reglas del mes → **Importar**, o tildar/destildar a mano
+en la tabla del mes: un día destildado a mano no se vuelve a marcar.
 
 ## Desarrollo
 

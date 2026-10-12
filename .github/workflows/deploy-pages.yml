@@ -27,7 +27,8 @@ jobs:
           cache: npm
       - run: npm ci
       - run: npm test
-      # Publica firestore.rules y corre migraciones pendientes con la cuenta de
+      # Publica firestore.rules, corre migraciones pendientes y sincroniza los
+      # feriados oficiales (este año y el siguiente) con la cuenta de
       # servicio del secret. Si el secret falta o está mal, avisa pero no frena
       # la app (las reglas se pueden publicar a mano con npm run deploy:rules).
       - name: Reglas de Firestore y migraciones
@@ -41,6 +42,7 @@ jobs:
           fi
           node scripts/deploy-rules.mjs
           node scripts/migrate-v2.mjs
+          node scripts/sync-holidays.mjs
       - run: npm run build
       - uses: actions/configure-pages@v5
       - uses: actions/upload-pages-artifact@v3
