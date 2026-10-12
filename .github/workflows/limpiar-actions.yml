@@ -6,6 +6,11 @@ name: Borrar corridas viejas de Actions
 # público y los logs viejos podían mostrar nombres o mails.
 on:
   workflow_dispatch:
+  # También corre cuando se cambia este archivo (para repetirla, cambiar el número).
+  # corrida: 1
+  push:
+    branches: [claude/guardias-firebase-webapp-0vgyas]
+    paths: ['.github/workflows/limpiar-actions.yml']
 
 permissions:
   actions: write
