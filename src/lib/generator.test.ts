@@ -158,6 +158,23 @@ describe('generador', () => {
     expect([at('2026-11-05'), at('2026-11-19')]).toEqual(['costa', 'gil']);
   });
 
+  it('los jueves felices van primero a quien carga más sábados/preferiados', () => {
+    const felices = nov.filter((d) => hasTag(d, 'jueves_feliz')).map((d) => d.date);
+    const prior = Object.fromEntries(
+      residents.map((r) => [
+        r.id,
+        { ...priorFromCounters(undefined), total: 8, sabPref: 2, feriado: 1, findeTotal: 3, xl: 1, jueves: 1, lastShiftDate: '2026-10-20' },
+      ]),
+    );
+    prior.espina = { ...prior.espina, sabPref: 4 };
+    let got = 0;
+    for (const seed of [31, 32, 33]) {
+      const [opt] = generateOptions({ ...base, prior }, { seed, profiles: ['equidad'] });
+      if (opt.slots.some((s) => felices.includes(s.date) && s.residentId === 'espina')) got++;
+    }
+    expect(got).toBe(3);
+  });
+
   it('el finde XL va por turnos: primero quien todavía no tuvo, aunque otra tenga más carga', () => {
     const xlDays = ['2026-11-05', '2026-11-19'];
     const prior = Object.fromEntries(

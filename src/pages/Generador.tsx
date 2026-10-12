@@ -370,7 +370,8 @@ export default function Generador() {
               <p className="text-sm bg-accent-soft rounded-lg px-3 py-2 mb-3">
                 🌟 Findes XL del mes: <b>{xlRanking.days}</b>. Van por turnos: primero quien todavía no tuvo (o tuvo
                 menos); entre ellas, quien termina el mes con más carga (guardias, sábados/preferiados, feriados, findes,
-                noches sin dormir). Los pedidos mandan. Les toca a:{' '}
+                noches sin dormir). Los jueves felices, a quien carga más sábados/preferiados. Los pedidos mandan.
+                Finde XL, les toca a:{' '}
                 {xlRanking.order.map((x, i) => (
                   <span key={x.residentId}>
                     {i > 0 && ' · '}

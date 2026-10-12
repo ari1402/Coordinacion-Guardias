@@ -35,7 +35,7 @@ interface Weights {
   offSoft: number;
   onStrong: number;
   onSoft: number;
-  /** Premio por darle el finde XL / jueves feliz a quien viene con más carga. */
+  /** Premio por darle el finde XL a quien viene con más carga y el jueves feliz a quien tiene más sábados. */
   xlComp: number;
   felizComp: number;
 }
@@ -58,15 +58,15 @@ const BASE: Weights = {
   offSoft: 80,
   onStrong: 400,
   onSoft: 80,
-  xlComp: 60,
-  felizComp: 20,
+  xlComp: 40,
+  felizComp: 70,
 };
 
 export const PROFILES: Record<ProfileId, { label: string; description: string; weights: Weights }> = {
   equidad: {
     label: 'Máxima equidad',
     description: 'Prioriza repartir parejo con el acumulado: totales, sábados/preferiados, feriados y findes.',
-    weights: { ...BASE, total: 80, sabPref: 60, feriado: 40, xl: 30, findeTotal: 20, xlComp: 100, felizComp: 30 },
+    weights: { ...BASE, total: 80, sabPref: 60, feriado: 40, xl: 30, findeTotal: 20, xlComp: 60, felizComp: 100 },
   },
   pedidos: {
     label: 'Máximo respeto de pedidos',
@@ -127,8 +127,8 @@ export function burdenScores(counts: { total: number; sabPref: number; feriado: 
   const n = counts.length || 1;
   const keys = Object.keys(BURDEN_WEIGHTS) as (keyof typeof BURDEN_WEIGHTS)[];
   const mean = Object.fromEntries(keys.map((k) => [k, counts.reduce((a, c) => a + c[k], 0) / n])) as Record<(typeof keys)[number], number>;
-  // Con tope: el premio máximo (100 × 3) queda por debajo de un pedido fuerte (400).
-  return counts.map((c) => Math.max(-3, Math.min(3, keys.reduce((a, k) => a + BURDEN_WEIGHTS[k] * (c[k] - mean[k]), 0))));
+  // Con tope, así el premio (60 × 2,5) queda bien por debajo de un pedido fuerte (400).
+  return counts.map((c) => Math.max(-2.5, Math.min(2.5, keys.reduce((a, k) => a + BURDEN_WEIGHTS[k] * (c[k] - mean[k]), 0))));
 }
 
 /** Orden de prioridad para el próximo finde XL según el acumulado previo (para mostrar). */
@@ -615,9 +615,9 @@ function run(p: Problem, assign: Int16Array, W: Weights, out: Collector | null):
     cost += W[cat] * v;
   }
 
-  // Beneficios (finde XL, jueves feliz) para quien viene con más carga. La
-  // carga se mide sin contar esos mismos jueves, así no conviene sumarle
-  // guardias a nadie para "justificarle" el beneficio.
+  // Finde XL para quien viene con más carga. La carga se mide sin contar
+  // esos mismos jueves, así no conviene sumarle guardias a nadie para
+  // "justificarle" el beneficio.
   const burden = burdenScores(
     month.map((m, r) => ({
       total: p.prior[r].total + m.total - m.xl - m.jueves,
@@ -627,7 +627,13 @@ function run(p: Problem, assign: Int16Array, W: Weights, out: Collector | null):
       sinDormir: p.prior[r].sinDormir ?? 0,
     })),
   );
-  for (let r = 0; r < nR; r++) cost -= W.xlComp * month[r].xl * burden[r] + W.felizComp * month[r].jueves * burden[r];
+  // Jueves felices: van primero a quien carga más sábados/preferiados.
+  const sat = month.map((m, r) => p.prior[r].sabPref + m.sabPref);
+  const satMean = sat.reduce((a, b) => a + b, 0) / (nR || 1);
+  for (let r = 0; r < nR; r++) {
+    const satDebt = Math.max(-2.5, Math.min(2.5, sat[r] - satMean));
+    cost -= W.xlComp * month[r].xl * burden[r] + W.felizComp * month[r].jueves * satDebt;
+  }
 
   for (let r = 0; r < nR; r++) {
     if (p.rules.avoidSameWeekday) {
