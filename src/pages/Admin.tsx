@@ -145,6 +145,7 @@ function RulesForm({ month, configs }: { month: string; configs: MonthConfig[] }
           {toggle('avoidSameWeekday', 'Evitar repetir el mismo día de la semana')}
           {toggle('avoidDoubleSatPref', 'Máximo un sábado/preferiado por persona')}
           {toggle('sabadoComunConJueves', 'Quien tenga sábado común, que tenga un jueves')}
+          {toggle('juevesLibraFinde', 'Guardia de jueves → ese finde libre hasta el primer día hábil')}
         </div>
         <label className="flex flex-col gap-1 text-sm">
           Reglas y acuerdos internos del mes
@@ -185,12 +186,18 @@ function HolidayImport({ defaultYear }: { defaultYear: number }) {
       for (const h of list) {
         batch.set(
           doc(db, 'calendarDays', h.date),
-          { id: h.date, date: h.date, isHoliday: true, holidayName: h.name, holidaySource: h.kind === 'sanidad' ? 'sanidad' : 'oficial' },
+          {
+            id: h.date,
+            date: h.date,
+            isHoliday: true,
+            holidayName: h.name,
+            holidaySource: h.kind === 'sanidad' || h.kind === 'local' ? h.kind : 'oficial',
+          },
           { merge: true },
         );
       }
       await batch.commit();
-      setStatus(`✓ ${list.length} feriados de ${year} cargados (incluye Día de la Sanidad).`);
+      setStatus(`✓ ${list.length} feriados de ${year} cargados (incluye Sanidad, 24/12 y 31/12).`);
     } catch (e) {
       setStatus(`No se pudo traer la lista oficial (${(e as Error).message}). Podés cargar los feriados a mano en la tabla.`);
     } finally {
@@ -199,7 +206,7 @@ function HolidayImport({ defaultYear }: { defaultYear: number }) {
   }
 
   return (
-    <Card title="🇦🇷 Feriados oficiales" subtitle="Calendario del Ministerio del Interior (vía ArgentinaDatos) + Día de la Sanidad (21/9). CABA no tiene feriados propios aparte de los nacionales.">
+    <Card title="🇦🇷 Feriados oficiales" subtitle="Calendario del Ministerio del Interior (vía ArgentinaDatos) + los del hospital: Sanidad (21/9), 24/12 y 31/12. Se sincronizan solos en cada publicación; acá se pueden forzar.">
       <div className="flex flex-col gap-2.5">
         <div className="flex gap-2 items-center">
           <input type="number" value={year} onChange={(e) => setYear(Number(e.target.value))} className="w-28 rounded-lg border border-border bg-surface-2 px-3 py-2 text-sm text-text outline-none focus:border-accent" />

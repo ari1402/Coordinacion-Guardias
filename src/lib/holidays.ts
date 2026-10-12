@@ -7,7 +7,7 @@ const SOURCE = 'https://api.argentinadatos.com/v1/feriados';
 export interface OfficialHoliday {
   date: string;
   name: string;
-  kind: 'inamovible' | 'trasladable' | 'puente' | 'sanidad';
+  kind: 'inamovible' | 'trasladable' | 'puente' | 'sanidad' | 'local';
 }
 
 interface ApiHoliday {
@@ -17,11 +17,17 @@ interface ApiHoliday {
 }
 
 /**
- * Día de la Sanidad (21/9): asueto para trabajadores de la salud por
- * convenio, no figura en el calendario nacional.
+ * Días que para el hospital son feriado todos los años y no figuran en el
+ * calendario nacional (mismo listado en scripts/sync-holidays.mjs).
  */
-export function sanidadDay(year: number): OfficialHoliday {
-  return { date: `${year}-09-21`, name: 'Día de la Sanidad', kind: 'sanidad' };
+export const LOCAL_HOLIDAYS: { md: string; name: string; kind: 'sanidad' | 'local' }[] = [
+  { md: '09-21', name: 'Día de la Sanidad', kind: 'sanidad' },
+  { md: '12-24', name: 'Nochebuena', kind: 'local' },
+  { md: '12-31', name: 'Fin de año', kind: 'local' },
+];
+
+export function localHolidays(year: number): OfficialHoliday[] {
+  return LOCAL_HOLIDAYS.map((h) => ({ date: `${year}-${h.md}`, name: h.name, kind: h.kind }));
 }
 
 export async function fetchOfficialHolidays(year: number, includePuentes: boolean): Promise<OfficialHoliday[]> {
@@ -36,5 +42,5 @@ export async function fetchOfficialHolidays(year: number, includePuentes: boolea
       name: h.tipo === 'puente' ? `${h.nombre} (no laborable)` : h.nombre,
       kind: h.tipo === 'puente' ? 'puente' : h.tipo === 'trasladable' ? 'trasladable' : 'inamovible',
     }));
-  return [...official, sanidadDay(year)].sort((a, b) => a.date.localeCompare(b.date));
+  return [...official, ...localHolidays(year)].sort((a, b) => a.date.localeCompare(b.date));
 }

@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { CalendarDay, GuardiaRequest, MonthConfig, Resident } from '../types';
-import { DEFAULT_RULES, effectiveMonthConfig, hasTag, resolveMonth } from './dates';
+import { DEFAULT_RULES, addDaysISO, effectiveMonthConfig, hasTag, protectingThursday, resolveMonth } from './dates';
 import { evaluateDraft, generateOptions, slotKey } from './generator';
 import { secureShuffle } from './random';
 import { upcomingBirthdays } from './birthdays';
@@ -155,6 +155,43 @@ describe('generador', () => {
     const opts = generateOptions(base, { seed: 7 });
     expect(opts.map((o) => o.profile)).toEqual(['equidad', 'pedidos', 'descanso']);
     expect(performance.now() - t).toBeLessThan(8000);
+  });
+});
+
+describe('jueves → finde libre hasta el primer día hábil', () => {
+  const isHoliday = (d: string) => holidays.some((h) => h.date === d && h.isHoliday);
+
+  it('jueves común: libera vie, sáb y dom; el lunes vuelve', () => {
+    for (const d of ['2026-10-16', '2026-10-17', '2026-10-18']) expect(protectingThursday(d, isHoliday)).toBe('2026-10-15');
+    expect(protectingThursday('2026-10-19', isHoliday)).toBeNull();
+  });
+
+  it('finde XL: si el lunes es feriado, vuelve el martes', () => {
+    for (const d of ['2026-10-09', '2026-10-10', '2026-10-11', '2026-10-12']) expect(protectingThursday(d, isHoliday)).toBe('2026-10-08');
+    expect(protectingThursday('2026-10-13', isHoliday)).toBeNull();
+  });
+
+  it('el generador nunca pone guardia en el finde liberado de su jueves', () => {
+    const oct = resolveMonth('2026-10', holidays, configs);
+    const [opt] = generateOptions({ days: oct, residents, requests: [], rules: DEFAULT_RULES }, { seed: 9, profiles: ['equidad'] });
+    expect(opt.evaluation.summary.hardCount).toBe(0);
+    const at = new Map(opt.slots.map((s) => [s.date, s.residentId]));
+    for (const s of opt.slots.filter((x) => oct.find((d) => d.date === x.date)!.weekday === 3)) {
+      for (let i = 1; i <= 4; i++) {
+        const d = addDaysISO(s.date, i);
+        if (protectingThursday(d, isHoliday) === s.date) expect(at.get(d)).not.toBe(s.residentId);
+      }
+    }
+  });
+
+  it('marca si se viola a mano', () => {
+    const nov = resolveMonth('2026-11', holidays, configs);
+    const input = { days: nov, residents, requests: [], rules: DEFAULT_RULES };
+    const [opt] = generateOptions(input, { seed: 10, profiles: ['equidad'] });
+    const draft = opt.slots.map((s) => ({ ...s }));
+    draft.find((s) => s.date === '2026-11-12')!.residentId = 'gil';
+    draft.find((s) => s.date === '2026-11-15')!.residentId = 'gil';
+    expect(evaluateDraft(input, draft).issues.some((i) => i.code === 'finde_post_jueves')).toBe(true);
   });
 });
 

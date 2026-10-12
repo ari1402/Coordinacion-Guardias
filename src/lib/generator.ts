@@ -8,7 +8,7 @@ import type {
 } from '../types';
 import { requestIntent, requestShiftDates } from '../types';
 import { isBirthdayBlocked } from './birthdays';
-import { diffDays, hasTag, isSabadoOrPreferiado, shortDateLabel } from './dates';
+import { diffDays, hasTag, isoWeekday, isSabadoOrPreferiado, protectingThursday, shortDateLabel } from './dates';
 
 // ---------------------------------------------------------------------------
 // Perfiles: misma función de costo, distintos pesos. Así el generador puede
@@ -81,6 +81,7 @@ const DOUBLE_SAME_DAY = 2_000_000;
 const GAP_HARD_PER_DAY = 20_000;
 const OVER_MAX = 5_000;
 const SPREAD = 3_000;
+const POST_THURSDAY = 50_000;
 
 const CATS = ['total', 'sabPref', 'feriado', 'viernes', 'domingo', 'findeTotal', 'xl', 'jueves'] as const;
 type Cat = (typeof CATS)[number];
@@ -110,6 +111,8 @@ export interface ScheduleInput {
   prior?: Record<string, PriorCounts>;
   /** Slots fijados a mano (locked) o reservados para sorteo (raffleId sin residente). */
   fixed?: DraftSlot[];
+  /** Feriados (de cualquier mes) para saber cuál es el próximo día hábil. */
+  holidayDates?: string[];
 }
 
 export type IssueCode =
@@ -124,7 +127,8 @@ export type IssueCode =
   | 'doble_sab_pref'
   | 'sabado_sin_jueves'
   | 'pedido_off'
-  | 'pedido_on';
+  | 'pedido_on'
+  | 'finde_post_jueves';
 
 export interface Issue {
   severity: 'hard' | 'soft';
@@ -209,6 +213,9 @@ interface SlotMeta {
   sabComun: boolean;
   fixed: number; // índice de residente o -1
   raffle: boolean;
+  /** dayNum del jueves cuyo finde liberado incluye este día, o null. */
+  protector: number | null;
+  protectorDate: string | null;
 }
 
 interface OffEntry {
@@ -233,6 +240,7 @@ interface Problem {
   reason: (string | null)[][];
   prior: PriorCounts[];
   priorLast: (number | null)[];
+  priorLastThu: (number | null)[];
   offAt: OffEntry[][];
   onReqs: OnEntry[];
   bloqueos: GuardiaRequest[];
@@ -249,6 +257,8 @@ function compile(input: ScheduleInput): Problem {
   const dayByDate = new Map(days.map((d) => [d.date, d]));
   const base = days[0]?.date ?? '2000-01-01';
   const fixedByKey = new Map((input.fixed ?? []).map((f) => [slotKey(f.date, f.slotIndex), f]));
+  const holidays = new Set([...(input.holidayDates ?? []), ...days.filter((d) => d.isHoliday).map((d) => d.date)]);
+  const isHoliday = (d: string) => holidays.has(d);
 
   const slots: SlotMeta[] = buildSlots(days).map(({ date, slotIndex }) => {
     const d = dayByDate.get(date)!;
@@ -272,6 +282,10 @@ function compile(input: ScheduleInput): Problem {
       sabComun: hasTag(d, 'sabado_comun'),
       fixed: fixedIdx,
       raffle: !!f?.raffleId && !f.residentId,
+      ...(() => {
+        const thu = rules.juevesLibraFinde ? protectingThursday(date, isHoliday) : null;
+        return { protector: thu ? diffDays(base, thu) : null, protectorDate: thu };
+      })(),
     };
   });
 
@@ -315,6 +329,9 @@ function compile(input: ScheduleInput): Problem {
 
   const prior = resIds.map((id) => input.prior?.[id] ?? priorFromCounters(undefined));
   const priorLast = prior.map((p) => (p.lastShiftDate ? diffDays(base, p.lastShiftDate) : null));
+  const priorLastThu = prior.map((p) =>
+    p.lastShiftDate && isoWeekday(p.lastShiftDate) === 3 ? diffDays(base, p.lastShiftDate) : null,
+  );
 
   return {
     rules,
@@ -325,6 +342,7 @@ function compile(input: ScheduleInput): Problem {
     reason,
     prior,
     priorLast,
+    priorLastThu,
     offAt,
     onReqs,
     bloqueos,
@@ -356,6 +374,7 @@ function run(p: Problem, assign: Int16Array, W: Weights, out: Collector | null):
   const sabComun = new Uint8Array(nR);
   const wd = new Uint16Array(nR * 7);
   const last = [...p.priorLast];
+  const lastThu = [...p.priorLastThu];
   let cost = 0;
 
   const name = (r: number) => p.names[r];
@@ -440,6 +459,18 @@ function run(p: Problem, assign: Int16Array, W: Weights, out: Collector | null):
       }
     }
     last[r] = m.dayNum;
+
+    if (m.protector !== null && lastThu[r] === m.protector) {
+      cost += POST_THURSDAY;
+      out?.issues.push({
+        severity: 'hard',
+        code: 'finde_post_jueves',
+        slotKey: m.key,
+        residentId: p.resIds[r],
+        message: `${shortDateLabel(m.date)}: ${name(r)} hizo guardia el ${shortDateLabel(m.protectorDate!)} y tiene libre hasta el primer día hábil.`,
+      });
+    }
+    if (m.jueves) lastThu[r] = m.dayNum;
 
     for (const e of p.offAt[s]) {
       if (e.r !== r) continue;

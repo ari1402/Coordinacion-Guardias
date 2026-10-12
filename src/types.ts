@@ -57,6 +57,11 @@ export interface MonthRules {
   avoidDoubleSatPref: boolean;
   /** Quien tenga sábado común, que en lo posible tenga también un jueves. */
   sabadoComunConJueves: boolean;
+  /**
+   * Quien hace guardia un jueves tiene libre el posguardia y todo ese finde:
+   * no vuelve a tener guardia hasta el primer día hábil siguiente.
+   */
+  juevesLibraFinde: boolean;
 }
 
 /**
@@ -83,7 +88,7 @@ export interface CalendarDay {
   isHoliday: boolean;
   holidayName?: string;
   /** De dónde salió el feriado: importado oficial, sanidad o cargado a mano. */
-  holidaySource?: 'oficial' | 'sanidad' | 'manual';
+  holidaySource?: 'oficial' | 'sanidad' | 'local' | 'manual';
   /** Si está definido, pisa el R1 requerido por día de semana. */
   requiredR1Override?: number | null;
   notes?: string;

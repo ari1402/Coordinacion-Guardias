@@ -27,6 +27,7 @@ export const DEFAULT_RULES: MonthRules = {
   avoidSameWeekday: true,
   avoidDoubleSatPref: true,
   sabadoComunConJueves: true,
+  juevesLibraFinde: true,
 };
 
 const TZ = 'America/Argentina/Buenos_Aires';
@@ -196,6 +197,26 @@ export function hasTag(day: ResolvedDay, tag: DayTag): boolean {
 
 export function isSabadoOrPreferiado(day: ResolvedDay): boolean {
   return day.weekday === 5 || hasTag(day, 'preferiado');
+}
+
+export function isBusinessDay(dateISO: string, isHoliday: (d: string) => boolean): boolean {
+  return isoWeekday(dateISO) <= 4 && !isHoliday(dateISO);
+}
+
+/**
+ * Si `dateISO` cae en el "finde liberado" de una guardia de jueves (el
+ * viernes de posguardia y los días no hábiles que siguen, hasta el primer
+ * día hábil), devuelve ese jueves; si no, null.
+ */
+export function protectingThursday(dateISO: string, isHoliday: (d: string) => boolean): string | null {
+  const prev = addDaysISO(dateISO, -1);
+  if (isoWeekday(dateISO) === 4 && isoWeekday(prev) === 3) return prev;
+  if (isBusinessDay(dateISO, isHoliday)) return null;
+  let d = prev;
+  for (let i = 0; i < 10 && !isBusinessDay(d, isHoliday); i++) d = addDaysISO(d, -1);
+  if (isoWeekday(d) === 3) return d;
+  if (isoWeekday(d) === 4 && isoWeekday(addDaysISO(d, -1)) === 3) return addDaysISO(d, -1);
+  return null;
 }
 
 /** Distancias (en días) entre fechas consecutivas, ordenadas. */

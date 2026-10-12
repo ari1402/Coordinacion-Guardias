@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 // Sincroniza los feriados oficiales (Ministerio del Interior vía
-// ArgentinaDatos) + Día de la Sanidad del año actual y el siguiente.
+// ArgentinaDatos) + los del hospital (Sanidad, 24/12, 31/12) del año actual
+// y el siguiente.
 // Lo corre GitHub Actions en cada publicación. No pisa decisiones de las
 // admins: si un día fue destildado a mano, se respeta.
 
@@ -28,10 +29,15 @@ for (const y of [year, year + 1]) {
         source: 'oficial',
       }));
   } catch (e) {
-    console.log(`::warning::No pude traer los feriados de ${y}: ${e.message}`);
-    continue;
+    console.log(`::warning::No pude traer los feriados oficiales de ${y}: ${e.message}`);
+    list = [];
   }
-  list.push({ date: `${y}-09-21`, name: 'Día de la Sanidad', source: 'sanidad' });
+  // Feriados del hospital (mismo listado que LOCAL_HOLIDAYS en src/lib/holidays.ts).
+  list.push(
+    { date: `${y}-09-21`, name: 'Día de la Sanidad', source: 'sanidad' },
+    { date: `${y}-12-24`, name: 'Nochebuena', source: 'local' },
+    { date: `${y}-12-31`, name: 'Fin de año', source: 'local' },
+  );
 
   for (const h of list) {
     const ref = db.collection('calendarDays').doc(h.date);
@@ -46,6 +52,7 @@ for (const y of [year, year + 1]) {
 
   // Un trasladable que el gobierno movió de fecha deja de ser feriado en la
   // fecha vieja (solo los que cargó esta sincronización, no los manuales).
+  if (!list.some((h) => h.source === 'oficial')) continue;
   const official = new Set(list.map((h) => h.date));
   const stale = await db
     .collection('calendarDays')

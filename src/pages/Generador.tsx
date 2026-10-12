@@ -4,7 +4,8 @@ import { useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
 import Badge from '../components/Badge';
 import ImportTextModal from '../components/ImportTextModal';
-import { Card, Dot, Modal, MonthNav, PageHeader, btnPrimary, btnSecondary, inputCls } from '../components/ui';
+import PersonBreakdownGrid from '../components/PersonBreakdown';
+import { Card, Dot, Modal, MonthNav, PageHeader, Segmented, btnPrimary, btnSecondary, inputCls } from '../components/ui';
 import { useAuthContext } from '../context/AuthContext';
 import { db } from '../firebase';
 import {
@@ -37,6 +38,7 @@ import {
   type Issue,
   type ScheduleInput,
 } from '../lib/generator';
+import { buildBreakdown } from '../lib/breakdown';
 import { TAG_EMOJI, dayBgClass } from '../lib/labels';
 import { createRaffle, drawRaffle, winners } from '../lib/raffles';
 import {
@@ -72,6 +74,7 @@ export default function Generador() {
   const [showAllIssues, setShowAllIssues] = useState(false);
   const [importOpen, setImportOpen] = useState(false);
   const [importWarnings, setImportWarnings] = useState<string[]>([]);
+  const [detailView, setDetailView] = useState<string>('editor');
 
   const days = useMemo(() => resolveMonth(monthKey, storedDays, monthConfigs), [monthKey, storedDays, monthConfigs]);
   const cfg = useMemo(() => effectiveMonthConfig(monthKey, monthConfigs), [monthKey, monthConfigs]);
@@ -100,8 +103,15 @@ export default function Generador() {
   );
 
   const input: ScheduleInput = useMemo(
-    () => ({ days, residents: active, requests: monthRequests, rules: cfg.rules, prior }),
-    [days, active, monthRequests, cfg.rules, prior],
+    () => ({
+      days,
+      residents: active,
+      requests: monthRequests,
+      rules: cfg.rules,
+      prior,
+      holidayDates: storedDays.filter((d) => d.isHoliday).map((d) => d.date),
+    }),
+    [days, active, monthRequests, cfg.rules, prior, storedDays],
   );
 
   const source: 'borrador' | 'publicado' | 'vacío' = savedDraft ? 'borrador' : monthShifts.length ? 'publicado' : 'vacío';
@@ -137,6 +147,11 @@ export default function Generador() {
 
   const loading = lc || ls || ld;
   const monthOptions = options?.month === monthKey ? options.list : null;
+  const detailSlots = monthOptions?.find((o) => o.profile === detailView)?.slots ?? draft;
+  const breakdown = useMemo(
+    () => buildBreakdown(days, detailSlots, active.map((r) => r.id), prior),
+    [days, detailSlots, active, prior],
+  );
 
   function runGenerator() {
     setGenerating(true);
@@ -299,7 +314,18 @@ export default function Generador() {
           {monthOptions && (
             <div className="grid gap-4 md:grid-cols-3">
               {monthOptions.map((o) => (
-                <OptionCard key={o.profile} option={o} onUse={() => setDraft(o.slots)} />
+                <OptionCard
+                  key={o.profile}
+                  option={o}
+                  onUse={() => {
+                    setDraft(o.slots);
+                    setDetailView('editor');
+                  }}
+                  onDetail={() => {
+                    setDetailView(o.profile);
+                    document.getElementById('detalle-personas')?.scrollIntoView({ behavior: 'smooth' });
+                  }}
+                />
               ))}
             </div>
           )}
@@ -337,6 +363,32 @@ export default function Generador() {
                 ))}
               </div>
             </div>
+          </Card>
+
+          <div id="detalle-personas" />
+          <Card
+            title="Detalle por persona"
+            subtitle="Fechas con su día, días entre guardias (↩ = desde la última del mes anterior), reparto por día de semana y findes libres."
+            action={
+              monthOptions ? (
+                <Segmented
+                  value={monthOptions.some((o) => o.profile === detailView) ? detailView : 'editor'}
+                  onChange={setDetailView}
+                  options={[
+                    { value: 'editor', label: 'Editor' },
+                    ...monthOptions.map((o) => ({ value: o.profile, label: o.label.replace('Máximo ', '').replace('Máxima ', '') })),
+                  ]}
+                />
+              ) : undefined
+            }
+          >
+            <PersonBreakdownGrid
+              data={breakdown}
+              residents={active}
+              color={color}
+              minGapHard={cfg.rules.minGapHard}
+              minGapIdeal={cfg.rules.minGapIdeal}
+            />
           </Card>
 
           <div className="grid gap-4 lg:grid-cols-5">
@@ -482,6 +534,7 @@ function RulesCard({
             r.avoidSameWeekday && 'no repetir día de semana',
             r.avoidDoubleSatPref && 'máx. 1 sáb/preferiado',
             r.sabadoComunConJueves && 'sábado común → con jueves',
+            r.juevesLibraFinde && 'jueves → finde libre hasta el día hábil',
             'sin guardia el cumple ni el día anterior',
           ]
             .filter(Boolean)
@@ -505,7 +558,7 @@ function RulesCard({
   );
 }
 
-function OptionCard({ option, onUse }: { option: GeneratedOption; onUse: () => void }) {
+function OptionCard({ option, onUse, onDetail }: { option: GeneratedOption; onUse: () => void; onDetail: () => void }) {
   const s = option.evaluation.summary;
   return (
     <Card title={option.label} subtitle={option.description}>
@@ -528,6 +581,9 @@ function OptionCard({ option, onUse }: { option: GeneratedOption; onUse: () => v
       </dl>
       <button onClick={onUse} className={clsx(btnPrimary, 'w-full mt-4')}>
         Usar esta opción
+      </button>
+      <button onClick={onDetail} className="w-full mt-2 text-xs text-accent underline">
+        Ver detalle por persona
       </button>
     </Card>
   );
