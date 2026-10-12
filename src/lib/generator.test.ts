@@ -4,6 +4,7 @@ import { DEFAULT_RULES, addDaysISO, effectiveMonthConfig, hasTag, protectingThur
 import { evaluateDraft, generateOptions, priorFromCounters, slotKey } from './generator';
 import { secureShuffle } from './random';
 import { upcomingBirthdays } from './birthdays';
+import { buildBreakdown } from './breakdown';
 import { computeEquityCounters } from './equity';
 
 const residents: Resident[] = [
@@ -314,5 +315,27 @@ describe('métricas de findes', () => {
     expect(c.guardiasFindeLargo).toBe(1);
     const sinJueves = computeEquityCounters('x', ['2026-11-14', '2026-11-28'].map(shift), nov);
     expect(sinJueves.sabadosSinCompensar).toBe(2);
+  });
+});
+
+describe('findes que cruzan de mes', () => {
+  it('trabajar el dom 1/11 le saca el finde del sáb 31/10 (en octubre y en el detalle de noviembre)', () => {
+    const oct = resolveMonth('2026-10', holidays, configs);
+    const nov = resolveMonth('2026-11', holidays, configs);
+    const shift = (date: string) => ({ id: `${date}_0`, date, slotIndex: 0, assignedResidentId: 'gil', actualResidentId: 'gil', status: 'programada' as const, createdAt: '' });
+    const all = [shift('2026-10-05'), shift('2026-11-01')];
+    const octShifts = all.filter((s) => s.date.startsWith('2026-10'));
+    // Vista de octubre: sin mirar noviembre parecería libre; con el contexto, no.
+    const sinContexto = computeEquityCounters('gil', octShifts, oct);
+    const conContexto = computeEquityCounters('gil', octShifts, oct, undefined, all);
+    expect(conContexto.findesLibresA).toBe(sinContexto.findesLibresA - 1);
+    // Detalle de noviembre del generador: ese finde cuenta como del mes y no está libre.
+    const b = buildBreakdown(nov, [{ date: '2026-11-01', slotIndex: 0, residentId: 'gil' }], ['gil'], {}, { gil: ['2026-10-05'] }).gil;
+    expect(b.findesDelMes).toBe(5); // 31/10–1/11, 7, 14, 21 y 28
+    expect(b.findesLibres).toBe(4);
+    // Acumulado: octubre ya había contado el 31/10 como libre (sin ver el 1/11); no se cuenta dos veces.
+    const prior = { gil: { ...priorFromCounters(undefined), findesLibres: 3 } };
+    const b2 = buildBreakdown(nov, [{ date: '2026-11-01', slotIndex: 0, residentId: 'gil' }], ['gil'], prior, { gil: ['2026-10-05'] }).gil;
+    expect(b2.cumFindesLibres).toBe(3 - 1 + 4);
   });
 });

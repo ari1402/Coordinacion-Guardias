@@ -71,8 +71,8 @@ export default function Metricas() {
     [period, valid, storedDays, monthConfigs],
   );
   const counters = useMemo(
-    () => computeAllEquityCounters(active.map((r) => r.id), periodShifts, days, awayMonths(rotations)),
-    [active, periodShifts, days, rotations],
+    () => computeAllEquityCounters(active.map((r) => r.id), periodShifts, days, awayMonths(rotations), valid),
+    [active, periodShifts, days, rotations, valid],
   );
 
   const stats = COLUMNS.map((c) => {

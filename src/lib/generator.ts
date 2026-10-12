@@ -105,7 +105,13 @@ const CATS = ['total', 'sabPref', 'largo', 'feriado', 'viernes', 'domingo', 'fin
 type Cat = (typeof CATS)[number];
 
 /** Acumulado previo al mes que se genera (para que un mes compense al anterior). */
-export type PriorCounts = Record<Cat, number> & { lastShiftDate?: string; sinDormir?: number; sabSinComp?: number };
+export type PriorCounts = Record<Cat, number> & {
+  lastShiftDate?: string;
+  sinDormir?: number;
+  sabSinComp?: number;
+  /** Findes libres acumulados (comunes + largos) antes del mes. */
+  findesLibres?: number;
+};
 
 export function priorFromCounters(c: EquityCounters | undefined, lastShiftDate?: string): PriorCounts {
   return {
@@ -120,6 +126,7 @@ export function priorFromCounters(c: EquityCounters | undefined, lastShiftDate?:
     jueves: c?.juevesFelices ?? 0,
     sinDormir: c?.sinDormir ?? 0,
     sabSinComp: c?.sabadosSinCompensar ?? 0,
+    findesLibres: c?.findesLibresA ?? 0,
     lastShiftDate,
   };
 }

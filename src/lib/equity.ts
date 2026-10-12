@@ -7,19 +7,24 @@ import { addDaysISO, gapsBetween, hasTag, monthKey, monthsBetween, resolveMonths
  * histórico. `days` define el período: solo se cuentan fines de semana
  * libres de esos días, y deben incluir los días de todas las guardias.
  * `away` = meses en que no hace guardias (vacaciones): sus findes no cuentan
- * como "findes libres".
+ * como "findes libres". `context` = todas las guardias (de cualquier mes),
+ * para saber si un finde que cruza de mes quedó libre (p. ej. sáb 31/10 y
+ * dom 1/11): si no se pasa, solo se miran las de `shifts`.
  */
 export function computeEquityCounters(
   residentId: string,
   shifts: Shift[],
   days: ResolvedDay[],
   away?: Set<string>,
+  context?: Shift[],
 ): EquityCounters {
   const dayById = new Map(days.map((d) => [d.id, d]));
   const mine = shifts
     .filter((s) => s.actualResidentId === residentId && s.status !== 'cancelada')
     .sort((a, b) => a.date.localeCompare(b.date));
-  const occupied = new Set(mine.map((s) => s.date));
+  const occupied = new Set(
+    (context ?? shifts).filter((s) => s.actualResidentId === residentId && s.status !== 'cancelada').map((s) => s.date),
+  );
 
   const c: EquityCounters = {
     residentId,
@@ -109,8 +114,9 @@ export function computeAllEquityCounters(
   shifts: Shift[],
   days: ResolvedDay[],
   away?: Record<string, Set<string>>,
+  context?: Shift[],
 ): Record<string, EquityCounters> {
-  return Object.fromEntries(residentIds.map((id) => [id, computeEquityCounters(id, shifts, days, away?.[id])]));
+  return Object.fromEntries(residentIds.map((id) => [id, computeEquityCounters(id, shifts, days, away?.[id], context)]));
 }
 
 /** Meses (ordenados) que tienen al menos una guardia cargada. */

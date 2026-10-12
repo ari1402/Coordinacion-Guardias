@@ -93,11 +93,14 @@ export function monthSheets({ monthKey, days, shifts, residents, rotations = [],
         },
       ]),
     ),
+    Object.fromEntries(
+      people.map((r) => [r.id, shifts.filter((s) => valid(s) && !s.date.startsWith(monthKey) && s.actualResidentId === r.id).map((s) => s.date)]),
+    ),
   );
   const rotation = (id: string) => rotations.find((r) => r.id === id)?.months[monthKey] ?? '';
   const summaryHeader = [
     'Residente', 'Carril', 'Guardias del mes', 'Fechas', 'Lun–Mié', 'Jue', 'Vie', 'Sáb', 'Dom',
-    'Sáb + preferiados', 'Feriados', 'Findes libres', 'Findes largos libres', 'Findes XL', 'Separación mínima (días)', 'Total acumulado',
+    'Sáb + preferiados', 'Feriados', 'Findes libres en el mes', 'Findes largos libres', 'Findes XL', 'Separación mínima (días)', 'Total acumulado',
   ];
   const summary: Cell[][] = [
     [{ v: `Resumen por persona — ${label}`, s: 'title' }],
@@ -116,8 +119,8 @@ export function monthSheets({ monthKey, days, shifts, residents, rotations = [],
         b.byWeekday[6],
         b.sabPref,
         b.feriados,
-        `${b.findesLibres} de ${b.findesDelMes}`,
-        b.findesLargosDelMes ? `${b.findesLargosLibres} de ${b.findesLargosDelMes}` : '—',
+        b.findesLibres,
+        b.findesLargosDelMes ? b.findesLargosLibres : '—',
         b.xl,
         b.minGap ?? '—',
         b.cumTotal,

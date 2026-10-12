@@ -26,6 +26,8 @@ export default function PersonBreakdownGrid({
   minGapHard: number;
   minGapIdeal: number;
 }) {
+  const shown = residents.map((r) => data[r.id]).filter(Boolean);
+  const meanLibres = shown.reduce((a, b) => a + b.cumFindesLibres, 0) / (shown.length || 1);
   return (
     <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
       {residents.map((r) => {
@@ -81,15 +83,16 @@ export default function PersonBreakdownGrid({
             </div>
 
             <dl className="grid grid-cols-2 gap-x-3 gap-y-0.5 text-xs">
-              <dt className="text-text-dim">Findes libres</dt>
-              <dd className="text-right tabular-nums">
-                {b.findesLibres}/{b.findesDelMes} <span className="text-text-dim">({b.findesLibres100} 100%)</span>
+              <dt className="text-text-dim">Findes libres acumulados</dt>
+              <dd className="text-right tabular-nums" title={`${b.findesLibres} este mes`}>
+                {b.cumFindesLibres}{' '}
+                <DeltaBadge delta={b.cumFindesLibres - meanLibres} />
               </dd>
               {b.findesLargosDelMes > 0 && (
                 <>
-                  <dt className="text-text-dim">Findes largos libres</dt>
+                  <dt className="text-text-dim">Findes largos libres este mes</dt>
                   <dd className="text-right tabular-nums">
-                    {b.findesLargosLibres}/{b.findesLargosDelMes}
+                    {b.findesLargosLibres}
                     {b.xl > 0 && <span className="text-text-dim"> (+{b.xl} XL)</span>}
                   </dd>
                 </>
@@ -115,5 +118,16 @@ export default function PersonBreakdownGrid({
         );
       })}
     </div>
+  );
+}
+
+/** Diferencia con el promedio del grupo (más findes libres = mejor). */
+function DeltaBadge({ delta }: { delta: number }) {
+  if (Math.abs(delta) < 0.5) return <span className="text-[11px] text-text-dim">(en el promedio)</span>;
+  return (
+    <span className={clsx('text-[11px] px-1.5 py-0.5 rounded-md', delta > 0 ? 'bg-ok-soft text-ok' : 'bg-warn-soft text-warn')}>
+      {delta > 0 ? '+' : ''}
+      {delta.toFixed(1).replace('.', ',')} vs prom.
+    </span>
   );
 }

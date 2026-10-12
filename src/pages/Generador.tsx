@@ -1,5 +1,5 @@
 import clsx from 'clsx';
-import { useMemo, useState } from 'react';
+import { useMemo, useState, type ReactNode } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
 import Badge from '../components/Badge';
 import ImportTextModal from '../components/ImportTextModal';
@@ -93,6 +93,7 @@ export default function Generador() {
       active.map((r) => r.id),
       before,
       resolvePeriod(before, storedDays, monthConfigs),
+      awayMonths(rotations),
     );
     return Object.fromEntries(
       active.map((r) => {
@@ -100,7 +101,7 @@ export default function Generador() {
         return [r.id, priorFromCounters(counters[r.id], last)];
       }),
     );
-  }, [shifts, monthKey, active, storedDays, monthConfigs]);
+  }, [shifts, monthKey, active, storedDays, monthConfigs, rotations]);
 
   const monthRequests = useMemo(
     () => requests.filter((r) => [...r.dates, ...requestShiftDates(r)].some((d) => d.startsWith(monthKey))),
@@ -160,9 +161,18 @@ export default function Generador() {
   const loading = lc || ls || ld;
   const monthOptions = options?.month === monthKey ? options.list : null;
   const detailSlots = monthOptions?.find((o) => o.profile === detailView)?.slots ?? draft;
+  // Guardias publicadas de otros meses: para los findes que cruzan de mes (p. ej. sáb 31/10 + dom 1/11).
+  const outsideDates = useMemo(() => {
+    const m: Record<string, string[]> = {};
+    for (const sh of shifts) {
+      if (sh.status === 'cancelada' || sh.date.startsWith(monthKey)) continue;
+      (m[sh.actualResidentId] ??= []).push(sh.date);
+    }
+    return m;
+  }, [shifts, monthKey]);
   const breakdown = useMemo(
-    () => buildBreakdown(days, detailSlots, active.map((r) => r.id), prior),
-    [days, detailSlots, active, prior],
+    () => buildBreakdown(days, detailSlots, active.map((r) => r.id), prior, outsideDates, new Set(onVacation.map((r) => r.id))),
+    [days, detailSlots, active, prior, outsideDates, onVacation],
   );
 
   function runGenerator() {
@@ -267,7 +277,57 @@ export default function Generador() {
         <p className="text-text-dim text-sm">Cargando datos…</p>
       ) : (
         <div className="flex flex-col gap-4">
-          <div className="grid gap-4 lg:grid-cols-3">
+          <Card title={`Cronograma de ${monthLabel(monthKey)}`}>
+            <StatusPill source={source} dirty={dirty} />
+            <ol className="grid gap-3 sm:grid-cols-3 mt-4">
+              <Step n={1} title="Armar" text="El generador arma 3 propuestas; elegís una abajo y la retocás a mano en el editor.">
+                <button onClick={runGenerator} disabled={generating || !!busy} className={btnPrimary}>
+                  {generating ? 'Generando…' : '✨ Generar 3 opciones'}
+                </button>
+                <button onClick={() => setImportOpen(true)} disabled={!!busy} className="text-xs text-text-dim underline">
+                  o pegarlo desde un texto
+                </button>
+              </Step>
+              <Step n={2} title="Guardar borrador" text="Lo guarda sin publicar. Solo lo ven las admins y lo pueden seguir editando las dos.">
+                <button onClick={onSave} disabled={!!busy || !dirty} className={btnSecondary}>
+                  💾 Guardar borrador
+                </button>
+                {!dirty && <span className="text-xs text-text-dim">No hay cambios para guardar.</span>}
+              </Step>
+              <Step n={3} title="Publicar" text="Lo ven todas. Les llega el aviso para pedirlas en HIBA 2 y confirmar si están OK.">
+                <button onClick={onPublish} disabled={!!busy} className={clsx(btnPrimary, '!bg-ok')}>
+                  📣 Publicar para todas
+                </button>
+              </Step>
+            </ol>
+            {importWarnings.length > 0 && (
+              <ul className="mt-3 text-xs text-warn flex flex-col gap-1">
+                {importWarnings.map((w) => (
+                  <li key={w}>⚠ {w}</li>
+                ))}
+              </ul>
+            )}
+            <div className="flex flex-wrap gap-3 mt-4 pt-3 border-t border-border">
+              {dirty && (
+                <button onClick={clearEdits} className="text-xs text-text-dim underline">
+                  Descartar cambios sin guardar
+                </button>
+              )}
+              {monthShifts.length > 0 && (
+                <button onClick={() => setDraft(draftFromShifts(template, monthShifts))} className="text-xs text-text-dim underline">
+                  Volver a lo publicado
+                </button>
+              )}
+              <button
+                onClick={() => setDraft(draft.map((s) => (s.locked || s.raffleId ? s : { ...s, residentId: null })))}
+                className="text-xs text-text-dim underline"
+              >
+                Vaciar lo no fijado
+              </button>
+            </div>
+            {busy && <p className="text-xs text-text-dim mt-2">{busy}</p>}
+          </Card>
+          <div className="grid gap-4 lg:grid-cols-2">
             <RulesCard monthKey={monthKey} cfg={cfg} days={days} />
             <Card title="Pedidos del mes" subtitle={`${monthRequests.length} pedido(s) — los rechazados no se tienen en cuenta`}>
               {monthRequests.length === 0 ? (
@@ -285,48 +345,6 @@ export default function Generador() {
                   ))}
                 </ul>
               )}
-            </Card>
-            <Card title="Estado" subtitle={stateText(source, dirty)}>
-              <div className="flex flex-wrap gap-2">
-                <button onClick={runGenerator} disabled={generating || !!busy} className={btnPrimary}>
-                  {generating ? 'Generando…' : '✨ Generar 3 opciones'}
-                </button>
-                <button onClick={onSave} disabled={!!busy || !dirty} className={btnSecondary}>
-                  Guardar borrador
-                </button>
-                <button onClick={onPublish} disabled={!!busy} className={btnSecondary}>
-                  Publicar
-                </button>
-                <button onClick={() => setImportOpen(true)} disabled={!!busy} className={btnSecondary}>
-                  📋 Importar desde texto
-                </button>
-              </div>
-              {importWarnings.length > 0 && (
-                <ul className="mt-3 text-xs text-warn flex flex-col gap-1">
-                  {importWarnings.map((w) => (
-                    <li key={w}>⚠ {w}</li>
-                  ))}
-                </ul>
-              )}
-              <div className="flex flex-wrap gap-3 mt-3">
-                {dirty && (
-                  <button onClick={clearEdits} className="text-xs text-text-dim underline">
-                    Descartar cambios sin guardar
-                  </button>
-                )}
-                {monthShifts.length > 0 && (
-                  <button onClick={() => setDraft(draftFromShifts(template, monthShifts))} className="text-xs text-text-dim underline">
-                    Cargar lo publicado
-                  </button>
-                )}
-                <button
-                  onClick={() => setDraft(draft.map((s) => (s.locked || s.raffleId ? s : { ...s, residentId: null })))}
-                  className="text-xs text-text-dim underline"
-                >
-                  Vaciar lo no fijado
-                </button>
-              </div>
-              {busy && <p className="text-xs text-text-dim mt-2">{busy}</p>}
             </Card>
           </div>
 
@@ -360,16 +378,16 @@ export default function Generador() {
                 {cfg.rules.maxPerPerson > 0 && <> — revisá el tope de {cfg.rules.maxPerPerson} por persona en las reglas del mes</>}.
               </p>
             )}
-            <div className="xl:overflow-x-auto xl:-mx-1 xl:px-1">
-              {/* Celular y tablet: lista de días; compu grande: grilla semanal. */}
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-7 gap-1.5 xl:min-w-[880px]">
+            <div className="2xl:overflow-x-auto 2xl:-mx-1 2xl:px-1">
+              {/* Celular, tablet y compu común: lista de días; pantallas muy anchas: grilla semanal. */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 2xl:grid-cols-7 gap-1.5 2xl:min-w-[880px]">
                 {WEEKDAY_KEYS.map((_, i) => (
-                  <div key={i} className="hidden xl:block text-center text-xs text-text-dim font-medium py-1">
+                  <div key={i} className="hidden 2xl:block text-center text-xs text-text-dim font-medium py-1">
                     {WEEKDAY_SHORT[i as 0]}
                   </div>
                 ))}
                 {Array.from({ length: leading }, (_, i) => (
-                  <div key={`e${i}`} className="hidden xl:block" />
+                  <div key={`e${i}`} className="hidden 2xl:block" />
                 ))}
                 {days.map((day) => (
                   <DayCell
@@ -521,14 +539,32 @@ export default function Generador() {
   );
 }
 
-function stateText(source: 'borrador' | 'publicado' | 'vacío', dirty: boolean) {
-  const base =
-    source === 'borrador'
-      ? 'Hay un borrador guardado (no publicado).'
+function StatusPill({ source, dirty }: { source: 'borrador' | 'publicado' | 'vacío'; dirty: boolean }) {
+  const [tone, icon, text] = dirty
+    ? ['bg-warn-soft text-warn', '✏️', 'Tenés cambios sin guardar: se pierden si cerrás la página. Guardalos como borrador o publicá.']
+    : source === 'borrador'
+      ? ['bg-accent-soft text-accent', '💾', 'Borrador guardado, sin publicar: solo lo ven las admins.']
       : source === 'publicado'
-        ? 'Mostrando el cronograma publicado.'
-        : 'Todavía no hay nada armado para este mes.';
-  return dirty ? `${base} Tenés cambios sin guardar.` : base;
+        ? ['bg-ok-soft text-ok', '✅', 'Publicado: es lo que ven todas.']
+        : ['bg-surface-2 text-text-dim', '🗒️', 'Todavía no hay nada armado para este mes.'];
+  return (
+    <p className={clsx('rounded-xl px-3 py-2 text-sm font-medium', tone)}>
+      {icon} {text}
+    </p>
+  );
+}
+
+function Step({ n, title, text, children }: { n: number; title: string; text: string; children: ReactNode }) {
+  return (
+    <li className="rounded-xl border border-border p-3 flex flex-col gap-2">
+      <p className="text-sm font-semibold flex items-center gap-2">
+        <span className="h-6 w-6 rounded-full bg-accent text-accent-contrast grid place-items-center text-xs">{n}</span>
+        {title}
+      </p>
+      <p className="text-xs text-text-dim flex-1">{text}</p>
+      <div className="flex flex-col items-start gap-1.5">{children}</div>
+    </li>
+  );
 }
 
 function RulesCard({
@@ -658,10 +694,10 @@ function DayCell({
   const names = (ids: Set<string>) => [...ids].map((id) => byId.get(id)?.shortName).filter(Boolean).join(', ');
   const emojis = day.tags.map((t) => TAG_EMOJI[t]).filter(Boolean).join('');
   return (
-    <div className={clsx('border border-border rounded-xl p-2 xl:p-1.5 flex flex-col gap-1 xl:min-h-[96px]', dayBgClass(day))}>
-      <div className="flex items-center justify-between text-sm xl:text-xs">
+    <div className={clsx('border border-border rounded-xl p-2 2xl:p-1.5 flex flex-col gap-1 2xl:min-h-[96px]', dayBgClass(day))}>
+      <div className="flex items-center justify-between text-sm 2xl:text-xs">
         <span className="font-semibold">
-          <span className="xl:hidden capitalize font-normal text-text-dim">{WEEKDAY_SHORT[day.weekday]} </span>
+          <span className="2xl:hidden capitalize font-normal text-text-dim">{WEEKDAY_SHORT[day.weekday]} </span>
           {Number(day.date.slice(8))}
         </span>
         <span title={day.holidayName ?? ''}>{emojis}</span>
@@ -704,7 +740,7 @@ function DayCell({
             <select
               value={s.residentId ?? ''}
               onChange={(e) => onChange(key, e.target.value || null)}
-              className="flex-1 min-w-0 bg-transparent text-sm xl:text-[11px] py-1.5 xl:py-1 outline-none"
+              className="flex-1 min-w-0 bg-transparent text-sm 2xl:text-[11px] py-1.5 2xl:py-1 outline-none"
               aria-label={`Guardia ${s.date}`}
             >
               <option value="">— libre —</option>
@@ -717,17 +753,17 @@ function DayCell({
             </select>
             <button
               onClick={() => onToggleLock(key, !s.locked)}
-              className={clsx('text-base xl:text-[11px] px-1 xl:px-0.5', s.locked ? 'opacity-100' : 'opacity-30 hover:opacity-70')}
+              className={clsx('text-base 2xl:text-[11px] px-1 2xl:px-0.5', s.locked ? 'opacity-100' : 'opacity-30 hover:opacity-70')}
               title={s.locked ? 'Fijada: regenerar no la cambia' : 'Fijar'}
             >
               🔒
             </button>
-            <button onClick={() => onRaffle(s)} className="text-base xl:text-[11px] px-1 xl:px-0 opacity-30 hover:opacity-80" title="Sortear esta guardia">
+            <button onClick={() => onRaffle(s)} className="text-base 2xl:text-[11px] px-1 2xl:px-0 opacity-30 hover:opacity-80" title="Sortear esta guardia">
               🎲
             </button>
             <button
               onClick={() => onDisable(s.slotIndex)}
-              className="text-base xl:text-[11px] px-1 xl:pl-0 opacity-30 hover:opacity-80"
+              className="text-base 2xl:text-[11px] px-1 2xl:pl-0 opacity-30 hover:opacity-80"
               title="Deshabilitar: la toma otra persona (residente mayor)"
             >
               🚫
