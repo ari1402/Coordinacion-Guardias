@@ -23,7 +23,7 @@ const hash = (s) => createHash('sha256').update((s ?? '').trim().toLowerCase()).
 for (const d of (await db.collection('residents').get()).docs) {
   if (hash(d.get('email')) !== RECIBIA_EL_AVISO) continue;
   await d.ref.update({ avisoGenerar: true });
-  console.log(`Aviso del día 10: ${d.get('shortName')}`);
+  console.log('Aviso del día 10: tildado para 1 residente');
 }
 await marker.set({ v5: new Date().toISOString() }, { merge: true });
 console.log('Migración v5 aplicada.');

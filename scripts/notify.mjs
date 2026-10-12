@@ -6,6 +6,7 @@
 //   - Alguien dijo que NO está OK con sus guardias → a las admins.
 //   - "Ofrezco mi guardia": oferta nueva → a todas; la tomaron → a quien la ofreció.
 // Cada aviso se manda una sola vez (queda marcado notified = true).
+// Los logs de Actions son públicos: no se imprimen nombres, solo cantidades.
 
 import { cert, initializeApp } from 'firebase-admin/app';
 import { getFirestore } from 'firebase-admin/firestore';
@@ -34,7 +35,7 @@ for (const pub of (await db.collection('publications').where('notified', '==', f
       url: `${APP_URL}#/`,
       tag: `publicado-${pub.id}`,
     });
-    console.log(`Publicación ${pub.id} → ${residents.get(id)?.shortName ?? id}: ${n} push`);
+    console.log(`Publicación ${pub.id}: ${n} push`);
     sent += n;
   }
   await pub.ref.update({ notified: true });
@@ -53,7 +54,7 @@ for (const ack of (await db.collection('acks').where('notified', '==', false).ge
         url: `${APP_URL}#/admin?tab=conformidad`,
         tag: `ack-${ack.id}`,
       });
-      console.log(`Corrección de ${who} (${a.month}) → admin ${residents.get(id)?.shortName}: ${n} push`);
+      console.log(`Pedido de corrección (${a.month}) → una admin: ${n} push`);
       sent += n;
     }
   }
@@ -78,7 +79,7 @@ for (const off of (await db.collection('offers').where('notifiedOpen', '==', fal
         tag: `oferta-${off.id}`,
       });
     }
-    console.log(`Oferta ${o.date} de ${who}: avisada`);
+    console.log(`Oferta ${o.date}: avisada`);
   }
   await off.ref.update({ notifiedOpen: true });
 }
@@ -91,7 +92,7 @@ for (const off of (await db.collection('offers').where('notifiedTaken', '==', fa
     url: `${APP_URL}#/cambios`,
     tag: `oferta-tomada-${off.id}`,
   });
-  console.log(`Oferta ${o.date} tomada por ${taker}: avisado`);
+  console.log(`Oferta ${o.date} tomada: avisado`);
   await off.ref.update({ notifiedTaken: true });
 }
 

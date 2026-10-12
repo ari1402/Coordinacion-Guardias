@@ -16,10 +16,10 @@ on:
         description: 'Solo mostrar a quién se avisaría (no manda ni escribe nada)'
         type: boolean
         default: true
-      test_to:
-        description: 'Mandar SOLO un aviso de prueba a la residente con este mail (vacío = corrida normal)'
-        type: string
-        default: ''
+      prueba:
+        description: 'Mandar SOLO un aviso de prueba a quienes tienen tildado "Aviso del día 10"'
+        type: boolean
+        default: false
 
 permissions:
   contents: read
@@ -40,5 +40,4 @@ jobs:
           SMTP_USER: ${{ secrets.SMTP_USER }}
           SMTP_PASS: ${{ secrets.SMTP_PASS }}
           DRY_RUN: ${{ inputs.dry_run && 'true' || 'false' }}
-          TEST_TO: ${{ inputs.test_to || '' }}
-          TEST_AVISADAS: ${{ github.event_name == 'push' && 'true' || 'false' }}
+          TEST_AVISADAS: ${{ (github.event_name == 'push' || inputs.prueba) && 'true' || 'false' }}

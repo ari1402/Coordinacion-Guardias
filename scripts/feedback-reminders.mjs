@@ -16,9 +16,12 @@
 //   SMTP_USER / SMTP_PASS     (opcional) cuenta de Gmail + contraseña de aplicación
 //   APP_URL                   (opcional) URL pública de la app
 //   DRY_RUN=true              muestra a quién avisaría, sin mandar ni escribir
-//   TEST_TO=mail@…            manda SOLO un aviso de prueba a esa residente
+//   TEST_TO=mail@…            (solo corriéndolo a mano en una compu) aviso de prueba a esa residente
 //   TEST_AVISADAS=true        manda SOLO un aviso de prueba a quienes tienen el aviso del día 10
 //                             (push a sus dispositivos + mail si hay Gmail)
+//
+// El repo es público y los logs de Actions también: acá no se imprimen nombres
+// ni mails, solo cantidades.
 
 import { cert, initializeApp } from 'firebase-admin/app';
 import { getFirestore } from 'firebase-admin/firestore';
@@ -91,7 +94,7 @@ async function remind(resident, shiftId, date, { test = false } = {}) {
     mailed = true;
   }
   console.log(
-    `${DRY_RUN ? '[dry-run] ' : ''}${resident.shortName ?? resident.name} (guardia ${date}): ` +
+    `${DRY_RUN ? '[dry-run] ' : ''}Guardia ${date}: ` +
       `${pushed} push${mailed ? ' + mail' : ''}${pushed === 0 && !mailed ? ' — sin notificaciones activadas, lo va a ver en el Inicio' : ''}`,
   );
   return { pushed, mailed };
@@ -109,7 +112,7 @@ if (TEST_TO || process.env.TEST_AVISADAS === 'true') {
     const resident = { id: d.id, ...d.data() };
     const { pushed, mailed } = await remind(resident, 'prueba', yesterday, { test: true });
     if (pushed === 0 && !mailed) {
-      console.log(`::warning::${resident.shortName} todavía no activó las notificaciones en ningún dispositivo.`);
+      console.log('::warning::Una de las avisadas todavía no activó las notificaciones en ningún dispositivo.');
     }
   }
   process.exit(0);
@@ -166,7 +169,7 @@ if (todayAR.slice(8) === '10') {
       url: `${APP_URL}#/admin/generador?mes=${nextMonth}`,
       tag: `generar-${nextMonth}`,
     });
-    console.log(`Aviso de generar ${nextMonth} → ${d.get('shortName')}: ${n} push.`);
+    console.log(`Aviso de generar ${nextMonth}: ${n} push.`);
   }
 }
 
