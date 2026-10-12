@@ -8,7 +8,8 @@
 // "realizada" las guardias ya pasadas. Igual, al entrar a la app, el Inicio
 // muestra el feedback pendiente.
 // El día 8 de cada mes, además, avisa a todas que carguen los pedidos del mes
-// siguiente.
+// siguiente, y el 10 le avisa a quien genera las guardias (GENERAR_AVISO_A,
+// uno o más mails separados por coma) que toca generarlas.
 //
 // Variables de entorno (secrets del repo):
 //   FIREBASE_SERVICE_ACCOUNT  JSON de la cuenta de servicio de Firebase
@@ -130,24 +131,44 @@ for (const docSnap of shiftsSnap.docs) {
   if (pushed || mailed) reminded++;
 }
 
-// Día 8: pedidos del mes siguiente.
+const nextMonth = (() => {
+  const d = new Date(`${todayAR.slice(0, 7)}-01T00:00:00Z`);
+  d.setUTCMonth(d.getUTCMonth() + 1);
+  return d.toISOString().slice(0, 7);
+})();
+
+// Día 8: pedidos del mes siguiente (hay tiempo hasta el 10).
 if (todayAR.slice(8) === '08') {
-  const nextMonth = (() => {
-    const d = new Date(`${todayAR.slice(0, 7)}-01T00:00:00Z`);
-    d.setUTCMonth(d.getUTCMonth() + 1);
-    return d.toISOString().slice(0, 7);
-  })();
   const residents = await db.collection('residents').where('active', '==', true).get();
   let n = 0;
   for (const r of residents.docs) {
     n += await push(r.id, {
       title: `📝 Pedidos de ${monthLabel(nextMonth)}`,
-      body: 'Ya podés cargar tus pedidos: días que querés, que no podés o que necesitás el posguardia.',
+      body: 'Cargá tus pedidos antes del 10 (ese día se generan las guardias): días que querés, que no podés o que necesitás el posguardia.',
       url: `${APP_URL}#/pedidos`,
       tag: `pedidos-${nextMonth}`,
     });
   }
   console.log(`Recordatorio de pedidos de ${nextMonth}: ${n} push.`);
+}
+
+// Día 10: generar las guardias del mes siguiente.
+if (todayAR.slice(8) === '10') {
+  const emails = (process.env.GENERAR_AVISO_A || '').split(',').map((e) => e.trim().toLowerCase()).filter(Boolean);
+  for (const email of emails) {
+    const snap = await db.collection('residents').where('email', '==', email).limit(1).get();
+    if (snap.empty) {
+      console.log(`::warning::GENERAR_AVISO_A: no hay residente con el mail ${email}.`);
+      continue;
+    }
+    const n = await push(snap.docs[0].id, {
+      title: `✨ Hoy toca generar las guardias de ${monthLabel(nextMonth)}`,
+      body: 'Los pedidos ya están cargados. Abrí el generador.',
+      url: `${APP_URL}#/admin/generador?mes=${nextMonth}`,
+      tag: `generar-${nextMonth}`,
+    });
+    console.log(`Aviso de generar ${nextMonth} → ${email}: ${n} push.`);
+  }
 }
 
 console.log(`Listo: ${reminded} recordatorio(s) ${DRY_RUN ? 'a mandar' : 'enviados'}, ${marked} guardia(s) pasadas a "realizada".`);

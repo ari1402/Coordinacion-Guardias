@@ -26,6 +26,8 @@ permissions:
 
 env:
   TEST_PUSH_DEFAULT: residente@example.com
+  # A quién avisar el día 10 que toca generar las guardias (mails separados por coma).
+  GENERAR_AVISO_A: residente@example.com
 
 jobs:
   send:

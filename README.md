@@ -82,7 +82,9 @@ botones "Dormí / No dormí".
   Admin → Conformidad y en el Inicio de las admins).
 
 El recordatorio diario de las 8 AM además avisa el **día 8 de cada mes** que se
-carguen los pedidos del mes siguiente.
+carguen los pedidos del mes siguiente (en el Inicio el aviso queda los días 8 y
+9), y el **día 10** le avisa a `GENERAR_AVISO_A` (en `feedback-reminder.yml`)
+que toca generar las guardias.
 
 ### 4. Feriados
 

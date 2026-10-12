@@ -99,8 +99,12 @@ export default function Inicio() {
   const pendingRequests = requests.filter((r) => r.status === 'pendiente').slice(0, 4);
   const recentRaffles = raffles.slice(0, 3);
   const nextMonth = shiftMonthKey(monthKey(today), 1);
+  const dayOfMonth = Number(today.slice(8));
+  // El aviso de pedidos dura 48 h (días 8 y 9): el 10 se generan las guardias.
   const askPedidos =
-    Number(today.slice(8)) >= 8 && !requests.some((r) => r.residentId === me?.id && r.dates.some((d) => d.startsWith(nextMonth)));
+    (dayOfMonth === 8 || dayOfMonth === 9) &&
+    !requests.some((r) => r.residentId === me?.id && r.dates.some((d) => d.startsWith(nextMonth)));
+  const toGenerate = isAdmin && dayOfMonth >= 10 && !shifts.some((s) => s.date.startsWith(nextMonth));
   const upcomingEvents = upcomingEventDates(events, today, 4);
 
   if (loading || !me) return <p className="text-sm text-text-dim">Cargando…</p>;
@@ -127,10 +131,21 @@ export default function Inicio() {
           className="rounded-2xl border border-accent/40 bg-accent-soft px-4 py-3 text-sm flex items-center justify-between gap-3 hover:brightness-95"
         >
           <span>
-            📝 Ya se pueden cargar los pedidos de <b>{monthLabel(nextMonth)}</b>: días que querés, que no podés o que
-            necesitás el posguardia.
+            📝 Todavía no cargaste tus pedidos de <b>{monthLabel(nextMonth)}</b> (días que querés, que no podés o que
+            necesitás el posguardia). El 10 se generan las guardias.
           </span>
           <span className="text-accent font-medium whitespace-nowrap">Cargar →</span>
+        </Link>
+      )}
+      {toGenerate && (
+        <Link
+          to={`/admin/generador?mes=${nextMonth}`}
+          className="rounded-2xl border border-warn/40 bg-warn-soft px-4 py-3 text-sm flex items-center justify-between gap-3 hover:brightness-95"
+        >
+          <span>
+            ✨ Toca generar las guardias de <b>{monthLabel(nextMonth)}</b>.
+          </span>
+          <span className="text-warn font-medium whitespace-nowrap">Ir al generador →</span>
         </Link>
       )}
 
