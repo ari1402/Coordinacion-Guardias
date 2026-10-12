@@ -2,34 +2,79 @@ import { useEffect, useState } from 'react';
 import { disablePush, enablePush, isIOS, pushState, pushSupport, type PushState, type PushSupport } from '../lib/push';
 import { btnPrimary, btnSecondary, Card } from './ui';
 
-const DISMISS_KEY = 'pushCardDismissed';
-
-function dismissed() {
-  try {
-    return localStorage.getItem(DISMISS_KEY) === '1';
-  } catch {
-    return false;
-  }
-}
+const QUE_AVISA =
+  'Te avisa cuando se publican las guardias, el 8 de cada mes para cargar pedidos y a la mañana después de cada guardia para el feedback.';
 
 /**
- * Activar / desactivar el recordatorio push de feedback. `inicio` es la
- * versión del dashboard: solo aparece si todavía no se activó y se puede
- * cerrar; en Mi cuenta se muestra siempre.
+ * Cartel del Inicio para que cada una active las notificaciones. No se puede
+ * cerrar: desaparece solo cuando quedan activadas en este dispositivo.
  */
-export default function PushCard({ residentId, inicio }: { residentId: string; inicio?: boolean }) {
+export function PushBanner({ residentId }: { residentId: string }) {
   const [support, setSupport] = useState<PushSupport | null>(null);
   const [state, setState] = useState<PushState>(pushState);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [hidden, setHidden] = useState(() => inicio && dismissed());
 
   useEffect(() => {
     pushSupport().then(setSupport);
   }, []);
 
-  if (support === null || hidden) return null;
-  if (inicio && (state === 'activadas' || support === 'no-soportado')) return null;
+  if (support === null || support === 'no-soportado' || state === 'activadas') return null;
+
+  async function activate() {
+    setBusy(true);
+    setError(null);
+    try {
+      await enablePush(residentId);
+    } catch (e) {
+      setError((e as Error).message || 'No se pudieron activar las notificaciones.');
+    } finally {
+      setState(pushState());
+      setBusy(false);
+    }
+  }
+
+  return (
+    <div className="rounded-2xl border border-accent/40 bg-accent-soft px-4 py-3 text-sm flex flex-col gap-2">
+      <div className="flex items-center justify-between gap-3 flex-wrap">
+        <span>
+          🔔 <b>Activá las notificaciones.</b> {QUE_AVISA}
+        </span>
+        {support === 'ok' && state === 'apagadas' && (
+          <button onClick={activate} disabled={busy} className={btnPrimary}>
+            {busy ? 'Activando…' : 'Activar'}
+          </button>
+        )}
+      </div>
+      {support === 'ios-instalar' && (
+        <p className="text-text-dim">
+          En iPhone, primero: Safari → botón Compartir (□↑) → <b>“Agregar a pantalla de inicio”</b>. Después abrí la app desde ese
+          ícono y te aparece el botón para activarlas.
+        </p>
+      )}
+      {support === 'ok' && state === 'bloqueadas' && (
+        <p className="text-warn">
+          Están bloqueadas para este sitio: habilitalas en la configuración del navegador (el candado 🔒 junto a la dirección) y
+          recargá.
+        </p>
+      )}
+      {error && <p className="text-danger">{error}</p>}
+    </div>
+  );
+}
+
+/** Activar / desactivar las notificaciones en este dispositivo (Mi cuenta). */
+export default function PushCard({ residentId }: { residentId: string }) {
+  const [support, setSupport] = useState<PushSupport | null>(null);
+  const [state, setState] = useState<PushState>(pushState);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    pushSupport().then(setSupport);
+  }, []);
+
+  if (support === null) return null;
 
   async function toggle(on: boolean) {
     setBusy(true);
@@ -45,28 +90,8 @@ export default function PushCard({ residentId, inicio }: { residentId: string; i
     }
   }
 
-  function close() {
-    try {
-      localStorage.setItem(DISMISS_KEY, '1');
-    } catch {
-      // sin storage: se oculta solo por esta vez
-    }
-    setHidden(true);
-  }
-
   return (
-    <Card
-      title="🔔 Notificaciones"
-      subtitle="Te avisa a las 8 AM, después de cada guardia, para que cargues el feedback (dormiste + carga). Nada más."
-      action={
-        inicio ? (
-          <button onClick={close} className="text-xs text-text-dim hover:text-text" aria-label="Ocultar">
-            ✕
-          </button>
-        ) : undefined
-      }
-      className={inicio ? 'border-accent/40' : undefined}
-    >
+    <Card title="🔔 Notificaciones" subtitle={QUE_AVISA}>
       {support === 'ios-instalar' && (
         <ol className="text-sm flex flex-col gap-1 list-decimal pl-5">
           <li>
@@ -109,7 +134,7 @@ export default function PushCard({ residentId, inicio }: { residentId: string; i
       )}
 
       {error && <p className="text-sm text-danger mt-2">{error}</p>}
-      {!inicio && support === 'ok' && (
+      {support === 'ok' && (
         <p className="text-xs text-text-dim mt-3">
           Se activan por dispositivo: si usás la app en el celu y en la compu, activalas en cada uno.
         </p>

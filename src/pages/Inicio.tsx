@@ -6,7 +6,7 @@ import { MyRotationStrip, rotationMonths } from '../components/Carriles';
 import { AckAlerts, MonthAckCard, pendingAcks } from '../components/Conformidad';
 import { eventEmoji, upcomingEventDates } from '../components/Eventos';
 import FeedbackForm from '../components/FeedbackForm';
-import PushCard from '../components/PushCard';
+import { PushBanner } from '../components/PushCard';
 import RangeBar from '../components/RangeBar';
 import { Card, Dot, Empty, ResidentChip } from '../components/ui';
 import { useAuthContext } from '../context/AuthContext';
@@ -144,6 +144,7 @@ export default function Inicio() {
           <span className="text-accent font-medium whitespace-nowrap">Cargar →</span>
         </Link>
       )}
+      <PushBanner residentId={me.id} />
       {toGenerate && (
         <Link
           to={`/admin/generador?mes=${nextMonth}`}
@@ -231,7 +232,6 @@ export default function Inicio() {
         </Card>
       </div>
 
-      <PushCard residentId={me.id} inicio />
 
       <div className="grid gap-4 lg:grid-cols-3">
         <Card
