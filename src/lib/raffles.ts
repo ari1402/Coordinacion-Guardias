@@ -1,6 +1,8 @@
 import { addDoc, collection, doc, getDoc, writeBatch } from 'firebase/firestore';
 import { db } from '../firebase';
 import type { Raffle } from '../types';
+import { logActivity } from './activity';
+import { shortDateLabel } from './dates';
 import { secureShuffle } from './random';
 
 export async function createRaffle(data: Omit<Raffle, 'id' | 'status' | 'createdAt'>): Promise<string> {
@@ -8,6 +10,10 @@ export async function createRaffle(data: Omit<Raffle, 'id' | 'status' | 'created
     ...stripUndefined(data),
     status: 'pendiente',
     createdAt: new Date().toISOString(),
+  });
+  await logActivity({
+    entity: 'sorteo',
+    summary: `Creó el sorteo "${data.title}"${data.linkedSlot ? ` (guardia del ${shortDateLabel(data.linkedSlot.date)})` : ''}`,
   });
   return ref.id;
 }
@@ -18,7 +24,11 @@ export async function createRaffle(data: Omit<Raffle, 'id' | 'status' | 'created
  * contenga a todos los participantes: no se puede volver a sortear.
  * Si el sorteo es de una guardia ya publicada, también la asigna.
  */
-export async function drawRaffle(raffle: Raffle, userId: string): Promise<string[]> {
+export async function drawRaffle(
+  raffle: Raffle,
+  userId: string,
+  nameOf: (id: string) => string = (id) => id,
+): Promise<string[]> {
   const order = secureShuffle(raffle.participantIds);
   const batch = writeBatch(db);
   batch.update(doc(db, 'raffles', raffle.id), {
@@ -39,6 +49,14 @@ export async function drawRaffle(raffle: Raffle, userId: string): Promise<string
       });
     }
   }
+  logActivity(
+    {
+      entity: 'sorteo',
+      summary: `Sorteó "${raffle.title}": ${order.slice(0, raffle.winnersCount).map(nameOf).join(', ')}`,
+      changes: [`Orden completo: ${order.map(nameOf).join(' → ')}`],
+    },
+    batch,
+  );
   await batch.commit();
   return order;
 }

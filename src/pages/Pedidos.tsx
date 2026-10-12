@@ -10,7 +10,9 @@ import { useRequests, useResidents, useResidentsById } from '../hooks/data';
 import { useColors } from '../hooks/useColors';
 import { addDaysISO, diffDays, monthKey, monthLabel, shortDateLabel, todayISO } from '../lib/dates';
 import type { GuardiaRequest, RequestIntent, RequestStatus, RequestType } from '../types';
-import { REQUEST_TYPE_PRIORITY, requestIntent, requestShiftDates } from '../types';
+import { REQUEST_TYPE_LABEL, REQUEST_TYPE_PRIORITY, requestIntent, requestShiftDates } from '../types';
+import type { Resident } from '../types';
+import { logActivity } from '../lib/activity';
 
 const STATUS_TONE: Record<RequestStatus, 'warning' | 'good' | 'critical' | 'neutral'> = {
   pendiente: 'warning',
@@ -19,7 +21,20 @@ const STATUS_TONE: Record<RequestStatus, 'warning' | 'good' | 'critical' | 'neut
   parcial: 'neutral',
 };
 
-function NewRequest({ residentId }: { residentId: string }) {
+function intentLabel(intent: RequestIntent) {
+  return intent === 'off' ? 'sin guardia' : intent === 'on' ? 'quiere la guardia' : 'necesita el posguardia';
+}
+
+function NewRequest({
+  me,
+  isAdmin,
+  residents,
+}: {
+  me: Resident;
+  isAdmin: boolean;
+  residents: Resident[];
+}) {
+  const [forId, setForId] = useState(me.id);
   const [intent, setIntent] = useState<RequestIntent>('off');
   const [type, setType] = useState<RequestType>('pedido_fuerte');
   const [mode, setMode] = useState<'dias' | 'rango'>('dias');
@@ -43,14 +58,25 @@ function NewRequest({ residentId }: { residentId: string }) {
     setSaving(true);
     try {
       await addDoc(collection(db, 'requests'), {
-        residentId,
+        residentId: forId,
         type: effectiveType,
         intent,
         dates: finalDates,
         reason: reason.trim(),
         status: 'pendiente',
+        createdBy: me.id,
         createdAt: new Date().toISOString(),
       });
+      const who = residents.find((r) => r.id === forId)?.shortName ?? '';
+      await logActivity({
+        entity: 'pedido',
+        summary:
+          forId === me.id
+            ? `Pidió ${intentLabel(intent)}: ${datesSummary(finalDates)}`
+            : `Cargó un pedido para ${who} (${intentLabel(intent)}): ${datesSummary(finalDates)}`,
+        changes: [`Tipo: ${REQUEST_TYPE_LABEL[effectiveType]}`, ...(reason.trim() ? [`Motivo: ${reason.trim()}`] : [])],
+      });
+      setForId(me.id);
       setDates([]);
       setFrom('');
       setTo('');
@@ -63,6 +89,18 @@ function NewRequest({ residentId }: { residentId: string }) {
   return (
     <Card title="Nuevo pedido">
       <form onSubmit={submit} className="flex flex-col gap-3">
+        {isAdmin && (
+          <label className="text-sm text-text-dim flex items-center gap-2">
+            Para
+            <select value={forId} onChange={(e) => setForId(e.target.value)} className="bg-surface-2 border border-border rounded-lg px-2 py-1.5 text-sm text-text">
+              {residents.filter((r) => r.active).map((r) => (
+                <option key={r.id} value={r.id}>
+                  {r.id === me.id ? `${r.shortName} (yo)` : r.shortName}
+                </option>
+              ))}
+            </select>
+          </label>
+        )}
         <Segmented<RequestIntent>
           value={intent}
           onChange={setIntent}
@@ -177,13 +215,28 @@ export default function Pedidos() {
       resolvedBy: me!.id,
       resolvedAt: new Date().toISOString(),
     });
+    await logActivity({
+      entity: 'pedido',
+      summary: `Marcó como ${status} el pedido de ${byId.get(r.residentId)?.shortName} (${datesSummary(r.dates)})`,
+      changes: [`Estado: ${r.status} → ${status}`, ...(notes[r.id] ? [`Nota: ${notes[r.id]}`] : [])],
+    });
+  }
+
+  async function remove(r: GuardiaRequest) {
+    if (!confirm('¿Borrar este pedido?')) return;
+    await deleteDoc(doc(db, 'requests', r.id));
+    await logActivity({
+      entity: 'pedido',
+      summary: `Borró el pedido de ${byId.get(r.residentId)?.shortName} (${datesSummary(r.dates)})`,
+      changes: [`Era: ${intentLabel(requestIntent(r))}, ${REQUEST_TYPE_LABEL[r.type]}, estado ${r.status}`],
+    });
   }
 
   return (
     <div className="flex flex-col gap-4">
       <PageHeader title="Pedidos" subtitle="Visibles para todo el grupo y ordenados por necesidad: bloqueo → pedido fuerte → preferencia." />
       <div className="grid gap-4 lg:grid-cols-5">
-        <div className="lg:col-span-2">{me && <NewRequest residentId={me.id} />}</div>
+        <div className="lg:col-span-2">{me && <NewRequest me={me} isAdmin={isAdmin} residents={residents} />}</div>
         <div className="lg:col-span-3 flex flex-col gap-3">
           <div className="flex gap-2 flex-wrap">
             <select value={month} onChange={(e) => setMonth(e.target.value)} className="bg-surface border border-border rounded-xl px-3 py-2 text-sm">
@@ -231,6 +284,9 @@ export default function Pedidos() {
                       )}
                     </p>
                     {r.reason && <p className="text-sm text-text-dim">{r.reason}</p>}
+                    {r.createdBy && r.createdBy !== r.residentId && (
+                      <p className="text-xs text-text-dim">Cargado por {byId.get(r.createdBy)?.shortName}</p>
+                    )}
                     {r.resolutionNote && <p className="text-xs text-text-dim">Resolución: {r.resolutionNote}</p>}
                     <div className="flex flex-wrap gap-2 items-center">
                       {isAdmin && (
@@ -253,7 +309,7 @@ export default function Pedidos() {
                         </>
                       )}
                       {(isAdmin || (mine && r.status === 'pendiente')) && (
-                        <button onClick={() => confirm('¿Borrar este pedido?') && deleteDoc(doc(db, 'requests', r.id))} className="text-xs text-danger underline ml-auto">
+                        <button onClick={() => remove(r)} className="text-xs text-danger underline ml-auto">
                           borrar
                         </button>
                       )}

@@ -38,6 +38,7 @@ import {
   type Issue,
   type ScheduleInput,
 } from '../lib/generator';
+import { logActivity } from '../lib/activity';
 import { buildBreakdown } from '../lib/breakdown';
 import { TAG_EMOJI, dayBgClass } from '../lib/labels';
 import { createRaffle, drawRaffle, winners } from '../lib/raffles';
@@ -60,6 +61,7 @@ export default function Generador() {
   const active = useMemo(() => residents.filter((r) => r.active), [residents]);
   const byId = useResidentsById(residents);
   const color = useColors(residents);
+  const nameOf = (id: string) => byId.get(id)?.shortName ?? id;
   const { storedDays, monthConfigs, loading: lc } = useCalendarData();
   const { shifts, loading: ls } = useAllShifts();
   const { requests } = useRequests();
@@ -185,7 +187,7 @@ export default function Generador() {
 
   const onPublish = () =>
     withBusy('Publicando…', async () => {
-      const plan = planPublish(monthKey, draft, shifts);
+      const plan = planPublish(monthKey, draft, shifts, nameOf);
       const hard = evaluation.summary.hardCount;
       const msg =
         `Vas a publicar ${monthLabel(monthKey)}: ${plan.changed} guardia(s) cambian.` +
@@ -193,7 +195,7 @@ export default function Generador() {
         (evaluation.summary.raffles ? `\n\nHay ${evaluation.summary.raffles} guardia(s) en sorteo pendiente: quedan sin asignar hasta que se sorteen.` : '') +
         '\n\n¿Seguimos?';
       if (!confirm(msg)) return;
-      await publish(plan);
+      await publish(plan, monthKey);
       if (savedDraft) await deleteDraft(monthKey);
       clearEdits();
     });
@@ -358,7 +360,7 @@ export default function Generador() {
                     onChange={(key, residentId) => updateSlot(key, { residentId, locked: true })}
                     onToggleLock={(key, locked) => updateSlot(key, { locked })}
                     onRaffle={setRaffleSlot}
-                    onDraw={(r) => withBusy('Sorteando…', async () => void (await drawRaffle(r, me!.id)))}
+                    onDraw={(r) => withBusy('Sorteando…', async () => void (await drawRaffle(r, me!.id, nameOf)))}
                   />
                 ))}
               </div>
@@ -470,7 +472,10 @@ export default function Generador() {
         onRemove={(slot) =>
           withBusy('Quitando sorteo…', async () => {
             const r = raffles.find((x) => x.id === slot.raffleId);
-            if (r?.status === 'pendiente') await deleteDoc(doc(db, 'raffles', r.id));
+            if (r?.status === 'pendiente') {
+              await deleteDoc(doc(db, 'raffles', r.id));
+              await logActivity({ entity: 'sorteo', summary: `Quitó el sorteo de la guardia del ${shortDateLabel(slot.date)}` });
+            }
             const key = slotKey(slot.date, slot.slotIndex);
             const next = draft.map((s) => {
               if (slotKey(s.date, s.slotIndex) !== key) return s;

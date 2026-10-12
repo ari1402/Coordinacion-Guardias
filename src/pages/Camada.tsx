@@ -7,6 +7,7 @@ import { Card, Empty, PageHeader, Segmented, btnPrimary, btnSecondary, inputCls 
 import { useAuthContext } from '../context/AuthContext';
 import { db } from '../firebase';
 import { useLinks, useNotes, useResidents, useResidentsById, useTasks } from '../hooks/data';
+import { diffFields, logActivity } from '../lib/activity';
 import { shortDateLabel, todayISO } from '../lib/dates';
 import type { CamadaTask, InfoNote, LinkItem, NoteCategory, TaskStatus } from '../types';
 import { NOTE_CATEGORIES } from '../types';
@@ -89,6 +90,7 @@ function Tareas() {
       createdBy: me!.id,
       createdAt: now(),
     });
+    await logActivity({ entity: 'tarea', summary: `Creó la tarea "${title.trim()}"` });
     setTitle('');
     setDescription('');
     setAssignees([]);
@@ -171,7 +173,14 @@ function TaskCard({
   canDelete: boolean;
 }) {
   const overdue = task.dueDate && task.dueDate < today && task.status !== 'hecha';
-  const move = (status: TaskStatus) => updateDoc(doc(db, 'tasks', task.id), { status, updatedAt: now() });
+  const move = async (status: TaskStatus) => {
+    await updateDoc(doc(db, 'tasks', task.id), { status, updatedAt: now() });
+    await logActivity({
+      entity: 'tarea',
+      summary: `Movió la tarea "${task.title}"`,
+      changes: [`Estado: ${STATUS_LABEL[task.status]} → ${STATUS_LABEL[status]}`],
+    });
+  };
   return (
     <div className="bg-surface border border-border rounded-xl p-3 flex flex-col gap-1.5">
       <p className={clsx('text-sm font-medium', task.status === 'hecha' && 'line-through text-text-dim')}>{task.title}</p>
@@ -206,7 +215,13 @@ function TaskCard({
           </button>
         )}
         {canDelete && (
-          <button onClick={() => confirm('¿Borrar tarea?') && deleteDoc(doc(db, 'tasks', task.id))} className="text-danger underline ml-auto">
+          <button
+            onClick={async () => {
+              if (!confirm('¿Borrar tarea?')) return;
+              await deleteDoc(doc(db, 'tasks', task.id));
+              await logActivity({ entity: 'tarea', summary: `Borró la tarea "${task.title}"` });
+            }}
+            className="text-danger underline ml-auto">
             borrar
           </button>
         )}
@@ -241,8 +256,19 @@ function Info() {
     e.preventDefault();
     if (!title.trim()) return;
     const data = { title: title.trim(), body: body.trim(), category, pinned };
-    if (editing) await updateDoc(doc(db, 'notes', editing.id), { ...data, updatedAt: now() });
-    else await addDoc(collection(db, 'notes'), { ...data, createdBy: me!.id, createdAt: now() });
+    if (editing) {
+      await updateDoc(doc(db, 'notes', editing.id), { ...data, updatedAt: now() });
+      await logActivity({
+        entity: 'nota',
+        summary: `Editó la nota "${data.title}"`,
+        changes: diffFields(editing as unknown as Record<string, unknown>, data, { title: 'Título', category: 'Categoría', pinned: 'Fijada' }).concat(
+          editing.body !== data.body ? ['Texto modificado'] : [],
+        ),
+      });
+    } else {
+      await addDoc(collection(db, 'notes'), { ...data, createdBy: me!.id, createdAt: now() });
+      await logActivity({ entity: 'nota', summary: `Publicó la nota "${data.title}" (${data.category})` });
+    }
     startEdit(null);
   }
 
@@ -306,7 +332,13 @@ function Info() {
                     <button onClick={() => startEdit(n)} className="text-text-dim underline">
                       editar
                     </button>
-                    <button onClick={() => confirm('¿Borrar nota?') && deleteDoc(doc(db, 'notes', n.id))} className="text-danger underline">
+                    <button
+                      onClick={async () => {
+                        if (!confirm('¿Borrar nota?')) return;
+                        await deleteDoc(doc(db, 'notes', n.id));
+                        await logActivity({ entity: 'nota', summary: `Borró la nota "${n.title}"` });
+                      }}
+                      className="text-danger underline">
                       borrar
                     </button>
                   </span>
@@ -351,6 +383,7 @@ function Links() {
       createdBy: me!.id,
       createdAt: now(),
     });
+    await logActivity({ entity: 'link', summary: `Agregó el link "${title.trim()}"`, changes: [clean] });
     setTitle('');
     setUrl('');
     setTags('');
@@ -428,11 +461,22 @@ function LinkCard({ link, canEdit, onTag }: { link: LinkItem; canEdit: boolean; 
           </button>
         ))}
         <span className="ml-auto flex gap-2 text-xs">
-          <button onClick={() => updateDoc(doc(db, 'links', link.id), { pinned: !link.pinned })} className="text-text-dim underline">
+          <button
+            onClick={async () => {
+              await updateDoc(doc(db, 'links', link.id), { pinned: !link.pinned });
+              await logActivity({ entity: 'link', summary: `${link.pinned ? 'Desfijó' : 'Fijó en inicio'} el link "${link.title}"` });
+            }}
+            className="text-text-dim underline">
             {link.pinned ? 'desfijar' : 'fijar en inicio'}
           </button>
           {canEdit && (
-            <button onClick={() => confirm('¿Borrar link?') && deleteDoc(doc(db, 'links', link.id))} className="text-danger underline">
+            <button
+              onClick={async () => {
+                if (!confirm('¿Borrar link?')) return;
+                await deleteDoc(doc(db, 'links', link.id));
+                await logActivity({ entity: 'link', summary: `Borró el link "${link.title}"`, changes: [link.url] });
+              }}
+              className="text-danger underline">
               borrar
             </button>
           )}

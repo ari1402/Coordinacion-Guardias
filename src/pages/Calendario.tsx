@@ -11,6 +11,7 @@ import { useColors } from '../hooks/useColors';
 import { useMonth } from '../hooks/useMonth';
 import { isBirthday } from '../lib/birthdays';
 import { effectiveMonthConfig, resolveMonth, shortDateLabel, todayISO } from '../lib/dates';
+import { logActivity } from '../lib/activity';
 import { downloadFile, shiftsToIcs } from '../lib/ics';
 import { LEGEND, TAG_EMOJI, TAG_LABEL, dayBgClass } from '../lib/labels';
 import type { GuardiaRequest, Resident, ResolvedDay, Shift, ShiftStatus } from '../types';
@@ -196,18 +197,40 @@ function DayModal({
     }
   }
 
+  const name = (id: string) => byId.get(id)?.shortName ?? id;
+  const where = `${shortDateLabel(day.date)}`;
+
   const assign = (s: Shift, residentId: string) =>
-    run(() => updateDoc(doc(db, 'shifts', s.id), { assignedResidentId: residentId, actualResidentId: residentId, updatedAt: now() }));
-  const setStatus = (s: Shift, status: ShiftStatus) => run(() => updateDoc(doc(db, 'shifts', s.id), { status, updatedAt: now() }));
+    run(async () => {
+      await updateDoc(doc(db, 'shifts', s.id), { assignedResidentId: residentId, actualResidentId: residentId, updatedAt: now() });
+      await logActivity({
+        entity: 'guardias',
+        summary: `Editó a mano la guardia del ${where}`,
+        changes: [`${name(s.actualResidentId)} → ${name(residentId)}`],
+      });
+    });
+  const setStatus = (s: Shift, status: ShiftStatus) =>
+    run(async () => {
+      await updateDoc(doc(db, 'shifts', s.id), { status, updatedAt: now() });
+      await logActivity({
+        entity: 'guardias',
+        summary: `Cambió el estado de la guardia del ${where} (${name(s.actualResidentId)})`,
+        changes: [`Estado: ${s.status} → ${status}`],
+      });
+    });
   const remove = (s: Shift) => {
-    if (confirm('¿Borrar esta guardia del cronograma publicado?')) run(() => deleteDoc(doc(db, 'shifts', s.id)));
+    if (!confirm('¿Borrar esta guardia del cronograma publicado?')) return;
+    run(async () => {
+      await deleteDoc(doc(db, 'shifts', s.id));
+      await logActivity({ entity: 'guardias', summary: `Borró la guardia del ${where}`, changes: [`${name(s.actualResidentId)} → —`] });
+    });
   };
   const add = () => {
     const slotIndex = shifts.length ? Math.max(...shifts.map((s) => s.slotIndex)) + 1 : 0;
     const id = `${day.date}_${slotIndex}`;
     const first = residents.find((r) => r.active)!;
-    return run(() =>
-      setDoc(doc(db, 'shifts', id), {
+    return run(async () => {
+      await setDoc(doc(db, 'shifts', id), {
         id,
         date: day.date,
         slotIndex,
@@ -215,8 +238,9 @@ function DayModal({
         actualResidentId: first.id,
         status: day.date < todayISO() ? 'realizada' : 'programada',
         createdAt: now(),
-      }),
-    );
+      });
+      await logActivity({ entity: 'guardias', summary: `Agregó un R1 a la guardia del ${where}`, changes: [`— → ${name(first.id)}`] });
+    });
   };
 
   return (

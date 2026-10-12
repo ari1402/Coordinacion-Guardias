@@ -8,6 +8,7 @@ import { db } from '../firebase';
 import { useRaffles, useResidents, useResidentsById } from '../hooks/data';
 import { useColors } from '../hooks/useColors';
 import { shortDateLabel } from '../lib/dates';
+import { logActivity } from '../lib/activity';
 import { createRaffle, drawRaffle, winners } from '../lib/raffles';
 import type { Raffle } from '../types';
 
@@ -186,7 +187,10 @@ function PendingRaffle({
   async function draw() {
     setRolling(true);
     try {
-      await Promise.all([drawRaffle(raffle, userId), new Promise((r) => setTimeout(r, 1600))]);
+      await Promise.all([
+        drawRaffle(raffle, userId, (id) => byId.get(id)?.shortName ?? id),
+        new Promise((r) => setTimeout(r, 1600)),
+      ]);
     } catch (e) {
       alert(`No se pudo sortear: ${(e as Error).message}`);
     } finally {
@@ -223,7 +227,11 @@ function PendingRaffle({
         )}
         {canDelete && !rolling && (
           <button
-            onClick={() => confirm('¿Borrar este sorteo?') && deleteDoc(doc(db, 'raffles', raffle.id))}
+            onClick={async () => {
+              if (!confirm('¿Borrar este sorteo?')) return;
+              await deleteDoc(doc(db, 'raffles', raffle.id));
+              await logActivity({ entity: 'sorteo', summary: `Borró el sorteo pendiente "${raffle.title}"` });
+            }}
             className={btnSecondary}
           >
             Borrar

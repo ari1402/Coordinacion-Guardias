@@ -1,7 +1,8 @@
 import { deleteDoc, doc, setDoc, writeBatch } from 'firebase/firestore';
 import { db } from '../firebase';
 import type { DraftSlot, Raffle, Shift } from '../types';
-import { todayISO } from './dates';
+import { logActivity } from './activity';
+import { monthLabel, shortDateLabel, todayISO } from './dates';
 import { slotKey } from './generator';
 import { stripUndefined, winners } from './raffles';
 
@@ -39,6 +40,7 @@ export async function saveDraft(month: string, slots: DraftSlot[], userId: strin
     updatedBy: userId,
     updatedAt: new Date().toISOString(),
   });
+  await logActivity({ entity: 'guardias', summary: `Guardó un borrador de ${monthLabel(month)}` });
 }
 
 export async function deleteDraft(month: string) {
@@ -49,6 +51,8 @@ export interface PublishPlan {
   upserts: Shift[];
   deletes: string[];
   changed: number;
+  /** "jue 5/11: Alba → Bravo" por cada guardia que cambia (para el historial). */
+  changes: string[];
 }
 
 /**
@@ -56,13 +60,20 @@ export interface PublishPlan {
  * misma persona, se conserva tal cual (incluido un cambio posterior y el
  * dato de sueño); si cambia de persona, se reasigna completa.
  */
-export function planPublish(month: string, draft: DraftSlot[], existing: Shift[]): PublishPlan {
+export function planPublish(
+  month: string,
+  draft: DraftSlot[],
+  existing: Shift[],
+  nameOf: (id: string) => string = (id) => id,
+): PublishPlan {
   const now = new Date().toISOString();
   const today = todayISO();
   const existingByKey = new Map(existing.filter((s) => s.date.startsWith(month)).map((s) => [s.id, s]));
   const upserts: Shift[] = [];
   const keep = new Set<string>();
+  const changes: string[] = [];
   let changed = 0;
+  const label = (date: string, slotIndex: number) => `${shortDateLabel(date)}${slotIndex ? ` (R1 #${slotIndex + 1})` : ''}`;
 
   for (const slot of draft) {
     if (!slot.residentId) continue;
@@ -71,6 +82,7 @@ export function planPublish(month: string, draft: DraftSlot[], existing: Shift[]
     const prev = existingByKey.get(id);
     if (prev && prev.assignedResidentId === slot.residentId) continue;
     changed++;
+    changes.push(`${label(slot.date, slot.slotIndex)}: ${prev ? nameOf(prev.assignedResidentId) : '—'} → ${nameOf(slot.residentId)}`);
     upserts.push(
       stripUndefined({
         id,
@@ -86,12 +98,17 @@ export function planPublish(month: string, draft: DraftSlot[], existing: Shift[]
     );
   }
   const deletes = [...existingByKey.keys()].filter((id) => !keep.has(id));
-  return { upserts, deletes, changed: changed + deletes.length };
+  for (const id of deletes) {
+    const s = existingByKey.get(id)!;
+    changes.push(`${label(s.date, s.slotIndex)}: ${nameOf(s.assignedResidentId)} → —`);
+  }
+  return { upserts, deletes, changed: changed + deletes.length, changes };
 }
 
-export async function publish(plan: PublishPlan) {
+export async function publish(plan: PublishPlan, month: string) {
   const batch = writeBatch(db);
   for (const s of plan.upserts) batch.set(doc(db, 'shifts', s.id), s);
   for (const id of plan.deletes) batch.delete(doc(db, 'shifts', id));
+  logActivity({ entity: 'guardias', summary: `Publicó ${monthLabel(month)} (${plan.changed} cambio(s))`, changes: plan.changes }, batch);
   await batch.commit();
 }

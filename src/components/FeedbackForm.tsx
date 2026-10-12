@@ -2,6 +2,8 @@ import clsx from 'clsx';
 import { doc, writeBatch } from 'firebase/firestore';
 import { useState } from 'react';
 import { db } from '../firebase';
+import { logActivity } from '../lib/activity';
+import { shortDateLabel } from '../lib/dates';
 import type { Shift } from '../types';
 import { btnPrimary, inputCls } from './ui';
 
@@ -46,6 +48,7 @@ export default function FeedbackForm({
         createdAt: now,
       });
       batch.update(doc(db, 'shifts', shift.id), { slept, updatedAt: now });
+      logActivity({ entity: 'feedback', summary: `Cargó el feedback de su guardia del ${shortDateLabel(shift.date)}` }, batch);
       await batch.commit();
       onDone?.();
     } catch (e) {

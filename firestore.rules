@@ -75,11 +75,13 @@ service cloud.firestore {
         || (isSelf(resource.data.actualResidentId) && onlyChanged(['slept', 'updatedAt']));
     }
 
-    // Pedidos: los ve todo el grupo. Cada una maneja los suyos mientras están pendientes.
+    // Pedidos: los ve todo el grupo. Cada una maneja los suyos mientras están
+    // pendientes; las admins pueden cargarlos en nombre de otra persona.
     match /requests/{id} {
       allow read: if isResident();
       allow create: if isResident()
-        && request.resource.data.residentId == request.auth.uid
+        && (request.resource.data.residentId == request.auth.uid || isAdmin())
+        && (!('createdBy' in request.resource.data) || request.resource.data.createdBy == request.auth.uid)
         && request.resource.data.status == 'pendiente';
       allow update: if isAdmin() || (
         isSelf(resource.data.residentId)
@@ -132,6 +134,16 @@ service cloud.firestore {
       allow create: if isResident() && createdByMe();
       allow update: if (isAdmin() || isSelf(resource.data.createdBy)) && keepsCreator();
       allow delete: if isAdmin() || isSelf(resource.data.createdBy);
+    }
+
+    // Historial de cambios: cada una solo puede agregar entradas a su nombre;
+    // nadie (ni las admins) puede editarlas ni borrarlas. Lo leen las admins.
+    match /activity/{id} {
+      allow read: if isAdmin();
+      allow create: if isResident()
+        && request.resource.data.by == request.auth.uid
+        && request.resource.data.keys().hasOnly(['id', 'at', 'by', 'entity', 'summary', 'changes']);
+      allow update, delete: if false;
     }
 
     // Sorteos: se sortean una sola vez (pendiente -> sorteado), con un orden

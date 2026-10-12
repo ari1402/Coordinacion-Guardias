@@ -171,6 +171,8 @@ export interface GuardiaRequest {
   dates: string[];
   reason: string;
   status: RequestStatus;
+  /** Quién lo cargó (una admin puede cargarlo en nombre de otra persona). */
+  createdBy?: string;
   resolutionNote?: string;
   createdAt: string;
   resolvedBy?: string;

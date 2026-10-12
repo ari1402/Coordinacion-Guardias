@@ -1,4 +1,4 @@
-import { orderBy, where } from 'firebase/firestore';
+import { limit, orderBy, where } from 'firebase/firestore';
 import { useMemo } from 'react';
 import { useCollection } from './useCollection';
 import type {
@@ -15,6 +15,7 @@ import type {
   ShiftFeedback,
   Swap,
 } from '../types';
+import type { ActivityEntry } from '../lib/activity';
 
 export function useResidents() {
   const { data, loading, error } = useCollection<Resident>('residents', [orderBy('name')]);
@@ -82,6 +83,12 @@ export function useNotes() {
 export function useRaffles() {
   const { data, loading, error } = useCollection<Raffle>('raffles', [orderBy('createdAt', 'desc')]);
   return { raffles: data, loading, error };
+}
+
+/** Historial de cambios (solo admins), lo más reciente primero. */
+export function useActivity(max = 400) {
+  const { data, loading, error } = useCollection<ActivityEntry>('activity', [orderBy('at', 'desc'), limit(max)], [max]);
+  return { activity: data, loading, error };
 }
 
 export function useDrafts(enabled: boolean) {

@@ -5,16 +5,35 @@ import { Link, useSearchParams } from 'react-router-dom';
 import Badge from '../components/Badge';
 import { Card, Dot, Empty, MonthNav, PageHeader, Segmented, btnPrimary, btnSecondary, inputBase, inputCls } from '../components/ui';
 import { db } from '../firebase';
-import { useCalendarData, useFeedback, useResidents, useResidentsById } from '../hooks/data';
+import { useActivity, useCalendarData, useFeedback, useResidents, useResidentsById } from '../hooks/data';
 import { useColors } from '../hooks/useColors';
 import { currentMonthKey } from '../hooks/useMonth';
 import { effectiveMonthConfig, isoWeekday, monthLabel, resolveMonth, shiftMonthKey, shortDateLabel } from '../lib/dates';
+import { diffFields, logActivity, type ActivityEntity } from '../lib/activity';
 import { fetchOfficialHolidays } from '../lib/holidays';
 import { TAG_EMOJI } from '../lib/labels';
 import type { CalendarDay, MonthConfig, MonthRules, Resident, Role, WeekdayRequirements } from '../types';
 import { WEEKDAY_KEYS, WEEKDAY_LABELS } from '../types';
 
-type Tab = 'reglas' | 'residentes' | 'feedback';
+type Tab = 'reglas' | 'residentes' | 'feedback' | 'historial';
+
+const RULE_LABELS: Record<string, string> = {
+  mon: 'R1 lunes',
+  tue: 'R1 martes',
+  wed: 'R1 miércoles',
+  thu: 'R1 jueves',
+  fri: 'R1 viernes',
+  sat: 'R1 sábado',
+  sun: 'R1 domingo',
+  minGapHard: 'Distancia prohibida',
+  minGapIdeal: 'Distancia ideal',
+  maxPerPerson: 'Tope por persona',
+  avoidSameWeekday: 'No repetir día de semana',
+  avoidDoubleSatPref: 'Máx. un sáb/preferiado',
+  sabadoComunConJueves: 'Sábado común → jueves',
+  juevesLibraFinde: 'Jueves libera el finde',
+  notes: 'Acuerdos del mes',
+};
 
 export default function Admin() {
   const [params, setParams] = useSearchParams();
@@ -33,6 +52,7 @@ export default function Admin() {
                 { value: 'reglas', label: '📐 Reglas del mes' },
                 { value: 'residentes', label: '👥 Residentes' },
                 { value: 'feedback', label: '💬 Feedback' },
+                { value: 'historial', label: '🕓 Historial' },
               ]}
             />
             <Link to="/admin/generador" className={btnPrimary}>
@@ -44,6 +64,7 @@ export default function Admin() {
       {tab === 'reglas' && <Reglas initialMonth={params.get('mes') ?? shiftMonthKey(currentMonthKey(), 1)} />}
       {tab === 'residentes' && <Residentes />}
       {tab === 'feedback' && <FeedbackAdmin />}
+      {tab === 'historial' && <Historial />}
     </div>
   );
 }
@@ -82,6 +103,13 @@ function RulesForm({ month, configs }: { month: string; configs: MonthConfig[] }
 
   async function save() {
     await setDoc(doc(db, 'monthConfigs', month), { id: month, weekdayRequirements: reqs, rules, notes });
+    const before = { ...eff.weekdayRequirements, ...eff.rules, notes: eff.notes } as Record<string, unknown>;
+    const after = { ...reqs, ...rules, notes } as Record<string, unknown>;
+    await logActivity({
+      entity: 'reglas',
+      summary: `Guardó las reglas de ${monthLabel(month)}`,
+      changes: diffFields(before, after, RULE_LABELS),
+    });
     setSaved(true);
     setTimeout(() => setSaved(false), 2000);
   }
@@ -158,7 +186,11 @@ function RulesForm({ month, configs }: { month: string; configs: MonthConfig[] }
           </button>
           {eff.hasOwnConfig && (
             <button
-              onClick={() => confirm('¿Borrar las reglas propias? El mes vuelve a heredar del anterior.') && deleteDoc(doc(db, 'monthConfigs', month))}
+              onClick={async () => {
+                if (!confirm('¿Borrar las reglas propias? El mes vuelve a heredar del anterior.')) return;
+                await deleteDoc(doc(db, 'monthConfigs', month));
+                await logActivity({ entity: 'reglas', summary: `${monthLabel(month)} volvió a heredar las reglas del mes anterior` });
+              }}
               className={btnSecondary}
             >
               Volver a heredar
@@ -196,6 +228,7 @@ function HolidayImport({ defaultYear }: { defaultYear: number }) {
           { merge: true },
         );
       }
+      logActivity({ entity: 'calendario', summary: `Importó ${list.length} feriados de ${year}` }, batch);
       await batch.commit();
       setStatus(`✓ ${list.length} feriados de ${year} cargados (incluye Sanidad, 24/12 y 31/12).`);
     } catch (e) {
@@ -230,8 +263,20 @@ function DaysEditor({ month, storedDays, configs }: { month: string; storedDays:
   const byId = new Map(storedDays.map((d) => [d.id, d]));
   const eff = effectiveMonthConfig(month, configs);
 
-  const save = (date: string, patch: Partial<CalendarDay>) =>
-    setDoc(doc(db, 'calendarDays', date), { id: date, date, isHoliday: byId.get(date)?.isHoliday ?? false, ...patch }, { merge: true });
+  const save = async (date: string, patch: Partial<CalendarDay>) => {
+    const before = byId.get(date) ?? {};
+    await setDoc(doc(db, 'calendarDays', date), { id: date, date, isHoliday: byId.get(date)?.isHoliday ?? false, ...patch }, { merge: true });
+    await logActivity({
+      entity: 'calendario',
+      summary: `Editó el ${shortDateLabel(date)}`,
+      changes: diffFields(before as Record<string, unknown>, { ...before, ...patch } as Record<string, unknown>, {
+        isHoliday: 'Feriado',
+        holidayName: 'Nombre',
+        requiredR1Override: 'R1',
+        notes: 'Nota',
+      }),
+    });
+  };
 
   return (
     <Card title={`Días de ${monthLabel(month)}`} subtitle="Feriados, cobertura especial (ej. martes sin R1) y notas por día." className="lg:col-span-3">
@@ -334,6 +379,17 @@ function ResidentRow({ resident, color }: { resident: Resident; color: string })
       birthday = `${m[2].padStart(2, '0')}-${m[1].padStart(2, '0')}`;
     }
     await updateDoc(doc(db, 'residents', resident.id), { name, shortName, role, active, birthday });
+    await logActivity({
+      entity: 'residente',
+      summary: `Editó el perfil de ${resident.shortName}`,
+      changes: diffFields(resident as unknown as Record<string, unknown>, { name, shortName, role, active, birthday }, {
+        name: 'Nombre',
+        shortName: 'Corto',
+        role: 'Rol',
+        active: 'Activa',
+        birthday: 'Cumple (MM-DD)',
+      }),
+    });
     setSaved(true);
     setTimeout(() => setSaved(false), 2000);
   }
@@ -465,5 +521,137 @@ function FeedbackAdmin() {
         )}
       </Card>
     </div>
+  );
+}
+
+// ---------------------------------------------------------------- Historial
+
+const ENTITY_LABEL: Record<ActivityEntity, string> = {
+  guardias: '📅 Guardias',
+  pedido: '🙋 Pedidos',
+  cambio: '🔁 Cambios',
+  sorteo: '🎲 Sorteos',
+  reglas: '📐 Reglas',
+  calendario: '🇦🇷 Calendario',
+  residente: '👥 Residentes',
+  tarea: '✅ Tareas',
+  nota: '📚 Notas',
+  link: '🔗 Links',
+  feedback: '🌙 Feedback',
+};
+
+function Historial() {
+  const [max, setMax] = useState(400);
+  const { activity, loading, error } = useActivity(max);
+  const { residents } = useResidents();
+  const byId = useResidentsById(residents);
+  const color = useColors(residents);
+  const [person, setPerson] = useState('todas');
+  const [entity, setEntity] = useState<'todas' | ActivityEntity>('todas');
+  const [query, setQuery] = useState('');
+  const [open, setOpen] = useState<Set<string>>(new Set());
+
+  const q = query.trim().toLowerCase();
+  const visible = activity
+    .filter((a) => person === 'todas' || a.by === person)
+    .filter((a) => entity === 'todas' || a.entity === entity)
+    .filter((a) => !q || [a.summary, ...(a.changes ?? [])].join(' ').toLowerCase().includes(q));
+
+  const byDay = new Map<string, typeof visible>();
+  for (const a of visible) {
+    const day = new Date(a.at).toLocaleDateString('es-AR', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' });
+    byDay.set(day, [...(byDay.get(day) ?? []), a]);
+  }
+
+  return (
+    <Card
+      title="Historial de cambios"
+      subtitle="Todo lo que se hace en la app: quién, qué, cuándo y el antes → después. No se puede editar ni borrar."
+    >
+      <div className="flex gap-2 flex-wrap mb-4">
+        <select value={person} onChange={(e) => setPerson(e.target.value)} className="bg-surface-2 border border-border rounded-lg px-3 py-2 text-sm">
+          <option value="todas">Todas las personas</option>
+          {residents.map((r) => (
+            <option key={r.id} value={r.id}>
+              {r.shortName}
+            </option>
+          ))}
+        </select>
+        <select value={entity} onChange={(e) => setEntity(e.target.value as ActivityEntity | 'todas')} className="bg-surface-2 border border-border rounded-lg px-3 py-2 text-sm">
+          <option value="todas">Todo tipo de cambio</option>
+          {(Object.keys(ENTITY_LABEL) as ActivityEntity[]).map((k) => (
+            <option key={k} value={k}>
+              {ENTITY_LABEL[k]}
+            </option>
+          ))}
+        </select>
+        <input value={query} onChange={(e) => setQuery(e.target.value)} placeholder="🔎 Buscar (fecha, nombre…)" className={clsx(inputBase, 'flex-1 min-w-[180px]')} />
+      </div>
+
+      {error && <p className="text-sm text-danger">No se pudo cargar el historial: {error}</p>}
+      {loading ? (
+        <Empty>Cargando…</Empty>
+      ) : visible.length === 0 ? (
+        <Empty>No hay cambios registrados con estos filtros. El historial empieza a partir de esta versión de la app.</Empty>
+      ) : (
+        <div className="flex flex-col gap-5">
+          {[...byDay.entries()].map(([day, items]) => (
+            <div key={day}>
+              <p className="text-xs font-semibold text-text-dim uppercase tracking-wide mb-2">{day}</p>
+              <ul className="flex flex-col divide-y divide-border border border-border rounded-xl">
+                {items.map((a) => {
+                  const expanded = open.has(a.id);
+                  const changes = a.changes ?? [];
+                  return (
+                    <li key={a.id} className="px-3 py-2.5 text-sm flex flex-col gap-1">
+                      <div className="flex items-start gap-2 flex-wrap">
+                        <span className="text-xs text-text-dim tabular-nums w-11 shrink-0 pt-0.5">
+                          {new Date(a.at).toLocaleTimeString('es-AR', { hour: '2-digit', minute: '2-digit' })}
+                        </span>
+                        <span className="flex items-center gap-1.5 font-medium shrink-0">
+                          <Dot color={color(a.by)} />
+                          {byId.get(a.by)?.shortName ?? '¿?'}
+                        </span>
+                        <span className="flex-1 min-w-[200px]">{a.summary}</span>
+                        <Badge>{ENTITY_LABEL[a.entity] ?? a.entity}</Badge>
+                      </div>
+                      {changes.length > 0 && (
+                        <ul className="ml-[3.25rem] text-xs text-text-dim flex flex-col gap-0.5">
+                          {(expanded ? changes : changes.slice(0, 3)).map((c, i) => (
+                            <li key={i} className="font-mono">
+                              {c}
+                            </li>
+                          ))}
+                          {changes.length > 3 && (
+                            <li>
+                              <button
+                                onClick={() => {
+                                  const next = new Set(open);
+                                  if (expanded) next.delete(a.id);
+                                  else next.add(a.id);
+                                  setOpen(next);
+                                }}
+                                className="text-accent underline"
+                              >
+                                {expanded ? 'ver menos' : `ver los ${changes.length} cambios`}
+                              </button>
+                            </li>
+                          )}
+                        </ul>
+                      )}
+                    </li>
+                  );
+                })}
+              </ul>
+            </div>
+          ))}
+          {activity.length >= max && (
+            <button onClick={() => setMax(max + 400)} className={clsx(btnSecondary, 'self-center')}>
+              Cargar más
+            </button>
+          )}
+        </div>
+      )}
+    </Card>
   );
 }

@@ -9,7 +9,8 @@ import { useMemo, useState } from 'react';
 import { useAuthContext } from '../context/AuthContext';
 import { db } from '../firebase';
 import { useAllShifts, useResidents, useResidentsById, useSwaps } from '../hooks/data';
-import { isoWeekday } from '../lib/dates';
+import { isoWeekday, shortDateLabel } from '../lib/dates';
+import { logActivity } from '../lib/activity';
 import Badge from '../components/Badge';
 import { PageHeader } from '../components/ui';
 
@@ -56,6 +57,11 @@ export default function Cambios() {
         createdAt: new Date().toISOString(),
         shiftId,
       });
+      await logActivity({
+        entity: 'cambio',
+        summary: `Registró un cambio: guardia del ${shortDateLabel(shift.date)} de ${residentsById.get(shift.actualResidentId)?.shortName} → ${residentsById.get(toResidentId)?.shortName}`,
+        changes: [generatesDebt ? 'Genera deuda' : 'Sin deuda', ...(reason.trim() ? [`Motivo: ${reason.trim()}`] : [])],
+      });
       setShiftId('');
       setToResidentId('');
       setReason('');
@@ -63,6 +69,12 @@ export default function Cambios() {
       setSubmitting(false);
     }
   }
+
+  const swapText = (swapId: string) => {
+    const s = swaps.find((x) => x.id === swapId);
+    if (!s) return '';
+    return `guardia del ${shortDateLabel(s.date)}: ${residentsById.get(s.fromResidentId)?.shortName} → ${residentsById.get(s.toResidentId)?.shortName}`;
+  };
 
   async function confirmSwap(swapId: string, targetShiftId: string, newResidentId: string) {
     const batch = writeBatch(db);
@@ -72,15 +84,18 @@ export default function Cambios() {
       swapId,
       updatedAt: new Date().toISOString(),
     });
+    logActivity({ entity: 'cambio', summary: `Confirmó el cambio (${swapText(swapId)})` }, batch);
     await batch.commit();
   }
 
   async function rejectSwap(swapId: string) {
     await updateDoc(doc(db, 'swaps', swapId), { status: 'rechazado' });
+    await logActivity({ entity: 'cambio', summary: `Rechazó el cambio (${swapText(swapId)})` });
   }
 
   async function settleDebt(swapId: string) {
     await updateDoc(doc(db, 'swaps', swapId), { debtSettled: true });
+    await logActivity({ entity: 'cambio', summary: `Marcó saldada la deuda (${swapText(swapId)})` });
   }
 
   const pendingDebts = swaps.filter((s) => s.generatesDebt && !s.debtSettled && s.status === 'confirmado');
