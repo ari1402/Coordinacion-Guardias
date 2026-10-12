@@ -71,7 +71,7 @@ export default function FeedbackForm({
             type="button"
             onClick={() => setSlept(o.v)}
             className={clsx(
-              'px-3 py-1.5 rounded-lg text-sm border transition-colors',
+              'flex-1 sm:flex-none px-3 py-2 sm:py-1.5 rounded-lg text-sm border transition-colors',
               slept === o.v
                 ? o.v
                   ? 'border-ok bg-ok-soft text-ok'
@@ -85,14 +85,14 @@ export default function FeedbackForm({
       </div>
       <div className="flex items-center gap-2 flex-wrap">
         <span className="text-sm text-text-dim w-28">Carga (1–10)</span>
-        <div className="flex gap-1 flex-wrap">
+        <div className="grid grid-cols-5 sm:flex gap-1.5 sm:gap-1 w-full sm:w-auto">
           {Array.from({ length: 10 }, (_, i) => i + 1).map((n) => (
             <button
               key={n}
               type="button"
               onClick={() => setCarga(n)}
               className={clsx(
-                'h-8 w-8 rounded-lg text-sm border tabular-nums transition-colors',
+                'h-10 sm:h-8 sm:w-8 rounded-lg text-sm border tabular-nums transition-colors',
                 carga === n ? 'border-accent bg-accent text-accent-contrast' : 'border-border text-text-dim hover:bg-surface-2',
               )}
             >
@@ -111,7 +111,7 @@ export default function FeedbackForm({
         />
       )}
       {error && <p className="text-sm text-danger">{error}</p>}
-      <button onClick={submit} disabled={saving || slept === null || carga === null} className={clsx(btnPrimary, 'self-start')}>
+      <button onClick={submit} disabled={saving || slept === null || carga === null} className={clsx(btnPrimary, 'w-full sm:w-auto sm:self-start')}>
         {saving ? 'Guardando…' : 'Enviar'}
       </button>
     </div>

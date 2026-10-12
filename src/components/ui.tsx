@@ -16,7 +16,7 @@ export function Card({
   className?: string;
 }) {
   return (
-    <section className={clsx('bg-surface border border-border rounded-2xl p-4 sm:p-5', className)}>
+    <section className={clsx('bg-surface border border-border rounded-2xl p-4 sm:p-5 min-w-0', className)}>
       {(title || action) && (
         <div className="flex items-start justify-between gap-3 mb-3">
           <div>
@@ -86,10 +86,10 @@ export function Modal({
   }, [open, onClose]);
   if (!open) return null;
   return (
-    <div className="fixed inset-0 bg-black/40 flex items-end sm:items-center justify-center p-0 sm:p-4 z-30" onClick={onClose}>
+    <div className="fixed inset-0 bg-black/40 flex items-end sm:items-center justify-center p-0 sm:p-4 z-40" onClick={onClose}>
       <div
         className={clsx(
-          'bg-surface border border-border rounded-t-2xl sm:rounded-2xl p-5 w-full max-h-[90vh] overflow-y-auto',
+          'bg-surface border border-border rounded-t-2xl sm:rounded-2xl p-5 pb-[calc(1.25rem+env(safe-area-inset-bottom))] sm:pb-5 w-full max-h-[90dvh] overflow-y-auto',
           wide ? 'sm:max-w-2xl' : 'sm:max-w-md',
         )}
         onClick={(e) => e.stopPropagation()}
@@ -130,7 +130,7 @@ export function Empty({ children }: { children: ReactNode }) {
 
 /** Input sin ancho: combinar con un w-* propio. */
 export const inputBase =
-  'rounded-lg border border-border bg-surface-2 px-3 py-2 text-sm text-text outline-none focus:border-accent';
+  'rounded-lg border border-border bg-surface-2 px-3 py-2 text-base sm:text-sm text-text outline-none focus:border-accent';
 
 export const inputCls = `${inputBase} w-full`;
 

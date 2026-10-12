@@ -356,15 +356,16 @@ export default function Generador() {
                 {cfg.rules.maxPerPerson > 0 && <> — revisá el tope de {cfg.rules.maxPerPerson} por persona en las reglas del mes</>}.
               </p>
             )}
-            <div className="overflow-x-auto -mx-1 px-1">
-              <div className="grid grid-cols-7 gap-1.5 min-w-[880px]">
+            <div className="md:overflow-x-auto md:-mx-1 md:px-1">
+              {/* Celular: lista de días; compu: grilla semanal. */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-7 gap-1.5 md:min-w-[880px]">
                 {WEEKDAY_KEYS.map((_, i) => (
-                  <div key={i} className="text-center text-xs text-text-dim font-medium py-1">
+                  <div key={i} className="hidden md:block text-center text-xs text-text-dim font-medium py-1">
                     {WEEKDAY_SHORT[i as 0]}
                   </div>
                 ))}
                 {Array.from({ length: leading }, (_, i) => (
-                  <div key={`e${i}`} />
+                  <div key={`e${i}`} className="hidden md:block" />
                 ))}
                 {days.map((day) => (
                   <DayCell
@@ -653,9 +654,12 @@ function DayCell({
   const names = (ids: Set<string>) => [...ids].map((id) => byId.get(id)?.shortName).filter(Boolean).join(', ');
   const emojis = day.tags.map((t) => TAG_EMOJI[t]).filter(Boolean).join('');
   return (
-    <div className={clsx('border border-border rounded-xl p-1.5 flex flex-col gap-1 min-h-[96px]', dayBgClass(day))}>
-      <div className="flex items-center justify-between text-xs">
-        <span className="font-semibold">{Number(day.date.slice(8))}</span>
+    <div className={clsx('border border-border rounded-xl p-2 md:p-1.5 flex flex-col gap-1 md:min-h-[96px]', dayBgClass(day))}>
+      <div className="flex items-center justify-between text-sm md:text-xs">
+        <span className="font-semibold">
+          <span className="md:hidden capitalize font-normal text-text-dim">{WEEKDAY_SHORT[day.weekday]} </span>
+          {Number(day.date.slice(8))}
+        </span>
         <span title={day.holidayName ?? ''}>{emojis}</span>
       </div>
       {info.bdays.length > 0 && <p className="text-[10px]">🎂 {info.bdays.join(', ')}</p>}
@@ -696,7 +700,7 @@ function DayCell({
             <select
               value={s.residentId ?? ''}
               onChange={(e) => onChange(key, e.target.value || null)}
-              className="flex-1 min-w-0 bg-transparent text-[11px] py-1 outline-none"
+              className="flex-1 min-w-0 bg-transparent text-sm md:text-[11px] py-1.5 md:py-1 outline-none"
               aria-label={`Guardia ${s.date}`}
             >
               <option value="">— libre —</option>
@@ -709,17 +713,17 @@ function DayCell({
             </select>
             <button
               onClick={() => onToggleLock(key, !s.locked)}
-              className={clsx('text-[11px] px-0.5', s.locked ? 'opacity-100' : 'opacity-30 hover:opacity-70')}
+              className={clsx('text-base md:text-[11px] px-1 md:px-0.5', s.locked ? 'opacity-100' : 'opacity-30 hover:opacity-70')}
               title={s.locked ? 'Fijada: regenerar no la cambia' : 'Fijar'}
             >
               🔒
             </button>
-            <button onClick={() => onRaffle(s)} className="text-[11px] opacity-30 hover:opacity-80" title="Sortear esta guardia">
+            <button onClick={() => onRaffle(s)} className="text-base md:text-[11px] px-1 md:px-0 opacity-30 hover:opacity-80" title="Sortear esta guardia">
               🎲
             </button>
             <button
               onClick={() => onDisable(s.slotIndex)}
-              className="text-[11px] pr-1 opacity-30 hover:opacity-80"
+              className="text-base md:text-[11px] px-1 md:pl-0 opacity-30 hover:opacity-80"
               title="Deshabilitar: la toma otra persona (residente mayor)"
             >
               🚫

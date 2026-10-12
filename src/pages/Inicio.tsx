@@ -149,7 +149,24 @@ export default function Inicio() {
         </Link>
       )}
 
-      <div className="grid gap-4 lg:grid-cols-3">
+      {pending.length > 0 && (
+        <Card
+          title={`¿Cómo te fue en la guardia del ${shortDateLabel(pending[pending.length - 1].date)}?`}
+          subtitle="Dos preguntas, 10 segundos. Sirve para mejorar el reparto (lo detallado solo lo ven Bea y Ana)."
+          action={
+            pending.length > 1 ? (
+              <Link to="/feedback" className="text-xs text-accent underline">
+                +{pending.length - 1} pendiente(s)
+              </Link>
+            ) : undefined
+          }
+          className="border-accent/40"
+        >
+          <FeedbackForm key={pending[pending.length - 1].id} shift={pending[pending.length - 1]} residentId={me.id} compact />
+        </Card>
+      )}
+
+      <div className="contents lg:grid gap-4 lg:grid-cols-3">
         <section className="lg:col-span-2 rounded-2xl p-5 text-white relative overflow-hidden" style={{ background: 'linear-gradient(135deg, var(--accent), #8f7ee6)' }}>
           <p className="text-sm opacity-80">Tu próxima guardia</p>
           {nextShift ? (
@@ -185,7 +202,7 @@ export default function Inicio() {
           </div>
         </section>
 
-        <Card title="🎂 Próximos cumpleaños">
+        <Card title="🎂 Próximos cumpleaños" className="order-last lg:order-none">
           {birthdays.length === 0 ? (
             <Empty>Cargá los cumpleaños en Admin → Residentes.</Empty>
           ) : (
@@ -206,23 +223,6 @@ export default function Inicio() {
           <p className="text-xs text-text-dim mt-3">Nadie hace guardia el día de su cumple ni el anterior.</p>
         </Card>
       </div>
-
-      {pending.length > 0 && (
-        <Card
-          title={`¿Cómo te fue en la guardia del ${shortDateLabel(pending[pending.length - 1].date)}?`}
-          subtitle="Dos preguntas, 10 segundos. Sirve para mejorar el reparto (lo detallado solo lo ven Bea y Ana)."
-          action={
-            pending.length > 1 ? (
-              <Link to="/feedback" className="text-xs text-accent underline">
-                +{pending.length - 1} pendiente(s)
-              </Link>
-            ) : undefined
-          }
-          className="border-accent/40"
-        >
-          <FeedbackForm key={pending[pending.length - 1].id} shift={pending[pending.length - 1]} residentId={me.id} compact />
-        </Card>
-      )}
 
       <PushCard residentId={me.id} inicio />
 

@@ -1,6 +1,6 @@
 import { initializeApp } from 'firebase/app';
-import { getAuth } from 'firebase/auth';
-import { getFirestore } from 'firebase/firestore';
+import { connectAuthEmulator, getAuth } from 'firebase/auth';
+import { connectFirestoreEmulator, getFirestore } from 'firebase/firestore';
 
 // Config de Firebase del proyecto "coordinacion-de-guardias". No es secreta:
 // identifica el proyecto ante Google, pero termina igual dentro del JS que
@@ -20,6 +20,13 @@ const firebaseConfig = {
 export const app = initializeApp(firebaseConfig);
 export const auth = getAuth(app);
 export const db = getFirestore(app);
+
+// Desarrollo sin tocar la base real: VITE_EMULATORS=1 npm run dev (con
+// `firebase emulators:start --only auth,firestore` corriendo).
+if (import.meta.env.VITE_EMULATORS) {
+  connectAuthEmulator(auth, 'http://127.0.0.1:9099', { disableWarnings: true });
+  connectFirestoreEmulator(db, '127.0.0.1', 8080);
+}
 
 export const COLLECTIONS = {
   residents: 'residents',

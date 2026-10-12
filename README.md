@@ -98,6 +98,9 @@ en la tabla del mes: un día destildado a mano no se vuelve a marcar.
 ```bash
 npm install
 npm run dev      # local, usa el mismo Firebase de producción
+# o, sin tocar la base real (necesita Java + firebase-tools):
+#   firebase emulators:start --only auth,firestore
+#   VITE_EMULATORS=1 npm run dev
 npm test         # tests del generador, fechas e importador de texto
 npm run build
 ```
