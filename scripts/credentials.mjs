@@ -31,6 +31,7 @@ export function loadServiceAccount() {
   const m = raw.match(/-----BEGIN PRIVATE KEY-----([\s\S]*?)-----END PRIVATE KEY-----/);
   if (!m) fail('La clave privada del secret está incompleta: copiá el archivo JSON tal cual lo bajaste de Firebase.');
   const body = m[1].replace(/[^A-Za-z0-9+/=]/g, '');
+  if (!body) fail('La clave privada del secret llegó vacía (solo el encabezado). Pegá el contenido del archivo .json descargado de Firebase, abierto con un editor de texto.');
   sa.private_key = `-----BEGIN PRIVATE KEY-----\n${body.match(/.{1,64}/g).join('\n')}\n-----END PRIVATE KEY-----\n`;
   try {
     createPrivateKey(sa.private_key);
