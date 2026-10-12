@@ -59,6 +59,9 @@ export default function Layout() {
           </nav>
           <div className="flex items-center gap-3 text-sm">
             <span className="text-text-dim hidden sm:inline">{resident?.shortName}</span>
+            <NavLink to="/cuenta" className="text-text-dim hover:text-accent transition-colors">
+              Mi cuenta
+            </NavLink>
             <button
               onClick={() => signOut(auth)}
               className="text-text-dim hover:text-danger transition-colors"

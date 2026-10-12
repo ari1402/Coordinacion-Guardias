@@ -10,6 +10,7 @@ import Feedback from './pages/Feedback';
 import Cambios from './pages/Cambios';
 import Admin from './pages/Admin';
 import Generador from './pages/Generador';
+import CambiarPassword from './pages/CambiarPassword';
 
 function FullScreenLoader() {
   return (
@@ -49,6 +50,7 @@ export default function App() {
         <Route path="/pedidos" element={<Pedidos />} />
         <Route path="/feedback" element={<Feedback />} />
         <Route path="/cambios" element={<Cambios />} />
+        <Route path="/cuenta" element={<CambiarPassword />} />
         {isAdmin && <Route path="/admin" element={<Admin />} />}
         {isAdmin && <Route path="/admin/generador" element={<Generador />} />}
         <Route path="*" element={<Navigate to="/" replace />} />
