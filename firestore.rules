@@ -1,0 +1,94 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function residentData(uid) {
+      return get(/databases/$(database)/documents/residents/$(uid)).data;
+    }
+
+    function isAdmin() {
+      return isSignedIn() && residentData(request.auth.uid).role == 'admin';
+    }
+
+    function isSelf(uid) {
+      return isSignedIn() && request.auth.uid == uid;
+    }
+
+    function onlyChanged(fields) {
+      return request.resource.data.diff(resource.data).affectedKeys().hasOnly(fields);
+    }
+
+    // Perfiles de residentes. El rol vive acá, no en custom claims: es la
+    // única fuente de verdad tanto para la UI (mostrar/ocultar Admin) como
+    // para estas reglas. Por eso nadie puede auto-promoverse a admin.
+    match /residents/{uid} {
+      allow read: if isSignedIn();
+      allow create: if isAdmin();
+      allow update: if isAdmin() || (isSelf(uid) && onlyChanged(['name', 'shortName', 'email']));
+      allow delete: if isAdmin();
+    }
+
+    // Config de R1 requeridos por día de semana, por mes.
+    match /monthConfigs/{id} {
+      allow read: if isSignedIn();
+      allow write: if isAdmin();
+    }
+
+    // Feriados / overrides puntuales de cobertura por día.
+    match /calendarDays/{id} {
+      allow read: if isSignedIn();
+      allow write: if isAdmin();
+    }
+
+    // El cronograma publicado. Lo escribe el generador (admin) pero también
+    // se actualiza cuando se confirma un cambio de guardia (ver /swaps) —
+    // por eso cualquier residente puede tocar actualResidentId/swapId.
+    match /shifts/{id} {
+      allow read: if isSignedIn();
+      allow create, delete: if isAdmin();
+      allow update: if isAdmin() || onlyChanged(['actualResidentId', 'swapId', 'updatedAt']);
+    }
+
+    // Pedidos: visibles para todo el grupo (transparencia). Cada residente
+    // gestiona los suyos mientras están pendientes; resolverlos es de admin.
+    match /requests/{id} {
+      allow read: if isSignedIn();
+      allow create: if isSignedIn()
+        && request.resource.data.residentId == request.auth.uid
+        && request.resource.data.status == 'pendiente';
+      allow update: if isAdmin() || (
+        isSelf(resource.data.residentId)
+        && resource.data.status == 'pendiente'
+        && request.resource.data.status == 'pendiente'
+      );
+      allow delete: if isAdmin() || (isSelf(resource.data.residentId) && resource.data.status == 'pendiente');
+    }
+
+    // Feedback post-guardia: colección sensible. Solo el autor y los admins
+    // (Bea / Ana) pueden leerla — toda query sin filtrar por
+    // residentId del propio usuario falla para un no-admin, por diseño.
+    match /feedback/{id} {
+      allow read: if isAdmin() || isSelf(resource.data.residentId);
+      allow create: if isSignedIn() && request.resource.data.residentId == request.auth.uid;
+      allow update, delete: if isAdmin();
+    }
+
+    // Cambios de guardia: cualquiera puede verlos y proponerlos; confirmarlos
+    // o rechazarlos es cosa de quien recibe la guardia, de quien la tenía, o
+    // de un admin. La deuda se puede saldar entre las mismas partes.
+    match /swaps/{id} {
+      allow read: if isSignedIn();
+      allow create: if isSignedIn() && request.resource.data.createdBy == request.auth.uid;
+      allow update: if isAdmin() || (
+        (isSelf(resource.data.toResidentId) || isSelf(resource.data.fromResidentId))
+        && onlyChanged(['status', 'debtSettled'])
+      );
+      allow delete: if isAdmin();
+    }
+  }
+}
