@@ -6,7 +6,7 @@ on:
   # Un push que toca este archivo manda solo un aviso de prueba (no la corrida
   # diaria) a la residente de TEST_PUSH_DEFAULT. Para repetir la prueba alcanza
   # con cambiar el número de abajo.
-  # prueba: 1
+  # prueba: 2
   push:
     branches: [claude/guardias-firebase-webapp-0vgyas]
     paths: ['.github/workflows/feedback-reminder.yml']
