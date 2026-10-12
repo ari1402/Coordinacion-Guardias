@@ -87,6 +87,12 @@ const GAP_HARD_PER_DAY = 20_000;
 const OVER_MAX = 5_000;
 const SPREAD = 3_000;
 const POST_THURSDAY = 50_000;
+/**
+ * Finde XL por turnos: dárselo a alguien que ya tuvo más que otra disponible
+ * (que no pidió no estar). Pesa más que cualquier premio por carga; solo lo
+ * saltea un pedido de esa persona para ese día.
+ */
+const XL_ROTATION = 1_500;
 
 const CATS = ['total', 'sabPref', 'feriado', 'viernes', 'domingo', 'findeTotal', 'xl', 'jueves'] as const;
 type Cat = (typeof CATS)[number];
@@ -138,7 +144,8 @@ export function xlPriority(prior: Record<string, PriorCounts>, ids: string[]) {
       // mismo balance que usa el costo: más carga suma, más findes XL ya hechos resta
       score: BASE.xlComp * burden[i] - 2 * BASE.xl * (counts[i].xl - meanXl),
     }))
-    .sort((a, b) => b.score - a.score);
+    // Primero quienes tuvieron menos findes XL (turnos); entre ellas, más carga.
+    .sort((a, b) => a.xl - b.xl || b.score - a.score);
 }
 
 export interface ScheduleInput {
@@ -168,7 +175,8 @@ export type IssueCode =
   | 'sabado_sin_jueves'
   | 'pedido_off'
   | 'pedido_on'
-  | 'finde_post_jueves';
+  | 'finde_post_jueves'
+  | 'finde_xl_turno';
 
 export interface Issue {
   severity: 'hard' | 'soft';
@@ -291,6 +299,10 @@ interface Problem {
   bloqueos: GuardiaRequest[];
   spreadEligible: boolean[];
   availableSlots: number[];
+  /** Por slot de finde XL: quiénes podrían hacerlo (pueden y no pidieron no estar). */
+  xlPool: (number[] | null)[];
+  /** Por slot: quiénes lo pidieron (quiero esta guardia / posguardia). */
+  onBySlot: Set<number>[];
 }
 
 function compile(input: ScheduleInput): Problem {
@@ -382,7 +394,15 @@ function compile(input: ScheduleInput): Problem {
     p.lastShiftDate && isoWeekday(p.lastShiftDate) === 3 ? diffDays(base, p.lastShiftDate) : null,
   );
 
+  const onBySlot = slots.map(() => new Set<number>());
+  for (const req of onReqs) for (const i of req.slots) onBySlot[i].add(req.r);
+  const xlPool = slots.map((sl, i) =>
+    sl.xl ? residents.map((_, r) => r).filter((r) => eligible[i][r] && !offAt[i].some((e) => e.r === r)) : null,
+  );
+
   return {
+    xlPool,
+    onBySlot,
     rules,
     resIds,
     names: residents.map((r) => r.shortName),
@@ -453,6 +473,24 @@ function run(p: Problem, assign: Int16Array, W: Weights, out: Collector | null):
         message: `${shortDateLabel(m.date)}: ${name(r)} no puede (${p.reason[s][r]}).`,
       });
     }
+    // Finde XL por turnos: primero quien todavía no tuvo (o tuvo menos).
+    const pool = p.xlPool[s];
+    if (pool && !p.onBySlot[s].has(r)) {
+      const had = (x: number) => p.prior[x].xl + month[x].xl;
+      const min = Math.min(...pool.map(had));
+      if (had(r) > min) {
+        cost += XL_ROTATION * (had(r) - min);
+        const waiting = pool.filter((x) => had(x) === min).map(name);
+        out?.issues.push({
+          severity: 'soft',
+          code: 'finde_xl_turno',
+          slotKey: m.key,
+          residentId: p.resIds[r],
+          message: `${shortDateLabel(m.date)}: finde XL para ${name(r)}, que ya tuvo ${had(r)}; todavía esperan ${waiting.join(', ')}.`,
+        });
+      }
+    }
+
     const c = month[r];
     c.total++;
     if (m.sabPref) c.sabPref++;

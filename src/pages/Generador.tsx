@@ -256,7 +256,9 @@ export default function Generador() {
     if (!xlDays.length) return null;
     const away = new Set(onVacation.map((r) => r.id));
     const ids = active.map((r) => r.id).filter((id) => !away.has(id));
-    return { days: xlDays.map((d) => shortDateLabel(d.date)).join(', '), order: xlPriority(prior, ids).slice(0, 3) };
+    const order = xlPriority(prior, ids);
+    const slotsXl = xlDays.reduce((a, d) => a + d.requiredR1, 0);
+    return { days: xlDays.map((d) => shortDateLabel(d.date)).join(', '), order: order.slice(0, Math.max(3, slotsXl + 1)) };
   }, [days, active, onVacation, prior]);
 
   return (
@@ -366,14 +368,18 @@ export default function Generador() {
           >
             {xlRanking && (
               <p className="text-sm bg-accent-soft rounded-lg px-3 py-2 mb-3">
-                🌟 Findes XL del mes: <b>{xlRanking.days}</b>. Van primero a quien termina el mes con más carga
-                (guardias, sábados/preferiados, feriados, findes, noches sin dormir) y menos findes XL; los pedidos
-                mandan. Hasta el mes pasado vienen con más carga:{' '}
+                🌟 Findes XL del mes: <b>{xlRanking.days}</b>. Van por turnos: primero quien todavía no tuvo (o tuvo
+                menos); entre ellas, quien termina el mes con más carga (guardias, sábados/preferiados, feriados, findes,
+                noches sin dormir). Los pedidos mandan. Les toca a:{' '}
                 {xlRanking.order.map((x, i) => (
                   <span key={x.residentId}>
                     {i > 0 && ' · '}
                     <b>{nameOf(x.residentId)}</b>
-                    <span className="text-text-dim"> ({x.burden >= 0 ? '+' : ''}{x.burden.toFixed(1)} carga, {x.xl} XL)</span>
+                    <span className="text-text-dim">
+                      {' '}
+                      ({x.xl === 0 ? 'ningún XL' : `${x.xl} XL`}, carga {x.burden >= 0 ? '+' : ''}
+                      {x.burden.toFixed(1)})
+                    </span>
                   </span>
                 ))}
                 .

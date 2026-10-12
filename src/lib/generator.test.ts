@@ -158,6 +158,37 @@ describe('generador', () => {
     expect([at('2026-11-05'), at('2026-11-19')]).toEqual(['costa', 'gil']);
   });
 
+  it('el finde XL va por turnos: primero quien todavía no tuvo, aunque otra tenga más carga', () => {
+    const xlDays = ['2026-11-05', '2026-11-19'];
+    const prior = Object.fromEntries(
+      residents.map((r) => [
+        r.id,
+        { ...priorFromCounters(undefined), total: 8, sabPref: 2, feriado: 1, findeTotal: 3, xl: 1, jueves: 1, lastShiftDate: '2026-10-20' },
+      ]),
+    );
+    // Costa e Duarte todavía no tuvieron XL; Funes viene con mucha carga pero ya tuvo.
+    prior.costa = { ...prior.costa, xl: 0 };
+    prior.duarte = { ...prior.duarte, xl: 0 };
+    prior.funes = { ...prior.funes, total: 11, sabPref: 4, feriado: 2 };
+    expect(xlPriority(prior, residents.map((r) => r.id)).slice(0, 2).map((x) => x.residentId).sort()).toEqual(['costa', 'duarte']);
+    for (const seed of [21, 22]) {
+      const [opt] = generateOptions({ ...base, prior }, { seed, profiles: ['equidad'] });
+      const got = xlDays.map((d) => opt.slots.find((s) => s.date === d)?.residentId).sort();
+      expect(got).toEqual(['costa', 'duarte']);
+      expect(opt.evaluation.issues.some((i) => i.code === 'finde_xl_turno')).toBe(false);
+    }
+    // Si Costa no puede ese finde, el turno pasa: no se le "fuerza" el XL.
+    const requests = [req({ residentId: 'costa', type: 'bloqueo', dates: ['2026-11-05', '2026-11-19'] })];
+    const [opt] = generateOptions({ ...base, prior, requests }, { seed: 23, profiles: ['equidad'] });
+    expect(xlDays.map((d) => opt.slots.find((s) => s.date === d)?.residentId)).toContain('duarte');
+    expect(opt.evaluation.summary.hardCount).toBe(0);
+    // Un pedido de quien ya tuvo XL igual se respeta.
+    const pedido = [req({ residentId: 'gil', type: 'pedido_fuerte', intent: 'on', dates: ['2026-11-19'] })];
+    const [opt2] = generateOptions({ ...base, prior, requests: pedido }, { seed: 24, profiles: ['equidad'] });
+    expect(opt2.slots.find((s) => s.date === '2026-11-19')?.residentId).toBe('gil');
+    expect(opt2.slots.find((s) => s.date === '2026-11-05')?.residentId).toMatch(/costa|duarte/);
+  });
+
   it('respeta bloqueos y cumple pedidos fuertes de "quiero esta guardia"', () => {
     const requests = [
       req({ residentId: 'bravo', type: 'bloqueo', dates: ['2026-11-06', '2026-11-07', '2026-11-08', '2026-11-14', '2026-11-15'] }),
