@@ -3,7 +3,15 @@
 Webapp para coordinar las guardias de la camada de R1: calendario, pedidos de
 fechas, dashboard de equidad (transparente para todo el grupo), feedback
 post-guardia (privado), cambios/swaps y un generador automático de
-cronograma. React + Firebase (Auth, Firestore, Hosting).
+cronograma. React + Firebase (Auth, Firestore) para los datos, publicada en
+**GitHub Pages**.
+
+Ya está conectada al proyecto Firebase `coordinacion-de-guardias` (con los 7
+R1 y octubre 2026 cargados) y el deploy a GitHub Pages es automático: cada
+push a esta rama (o a `main`) dispara `.github/workflows/deploy-pages.yml`,
+que compila la app y la publica sola. No hace falta instalar nada para
+usarla — solo entrar a la URL de Pages (ver más abajo) con el email/
+contraseña de cada quien.
 
 ## Cómo está pensada
 
@@ -22,49 +30,60 @@ cronograma. React + Firebase (Auth, Firestore, Hosting).
 
 ## Stack
 
-- Vite + React 19 + TypeScript + Tailwind v4
-- Firebase: Auth (email/password), Firestore, Hosting
-- Recharts para los gráficos (paleta accesible, ver `src/lib/palette.ts`)
+- Vite + React 19 + TypeScript + Tailwind v4, con `HashRouter` (rutas tipo
+  `/#/calendario`) para que GitHub Pages no necesite configurar rewrites de SPA.
+- Firebase: Auth (email/password) + Firestore para los datos.
+- GitHub Actions + GitHub Pages para publicarla.
+- Recharts para los gráficos (paleta accesible, ver `src/lib/palette.ts`).
 
-## Puesta en marcha (una sola vez)
+La config de Firebase (`src/firebase.ts`) no es secreta — identifica el
+proyecto, pero termina igual dentro del JS público sin importar de dónde
+salga — así que va directo en el código en vez de en variables de entorno;
+eso es lo que permite que GitHub Actions compile la app sin secretos.
 
-1. **Creá un proyecto en [Firebase Console](https://console.firebase.google.com/)**
-   (gratis, plan Spark alcanza de sobra para 7 personas).
-2. Activá **Authentication → Email/Password** y **Firestore Database**
-   (modo producción; las reglas de seguridad ya están en `firestore.rules`).
-3. En **Configuración del proyecto → Tus apps**, agregá una Web app y copiá su
-   config.
-4. `cp .env.example .env` y pegá ahí los valores (`VITE_FIREBASE_*`).
-5. `cp .firebaserc.example .firebaserc` y poné el ID de tu proyecto.
-6. `npm install`
+## Publicar en GitHub Pages (un solo paso manual)
 
-### Cargar los datos iniciales (residentes + octubre 2026)
+El workflow ya está en el repo. Falta un clic único para activarlo:
 
-1. Editá `scripts/residents.seed.json`: reemplazá los emails `CAMBIAR-...`
-   por los reales de cada R1 (el de Ana Alba ya está puesto) y las
-   `tempPassword` por contraseñas provisorias que cada una cambiará después.
+**Settings → Pages → Source: "GitHub Actions"** (en vez de "Deploy from a
+branch"). Después de eso, cada push a esta rama (o a `main`) la vuelve a
+publicar sola en `https://<usuario-u-org>.github.io/<repo>/`.
+
+## Si en algún momento hace falta reinstalar Firebase desde cero
+
+(Ya está hecho para este proyecto — esto es por si se migra a otro.)
+
+1. Creá un proyecto en [Firebase Console](https://console.firebase.google.com/).
+2. Activá **Authentication → Email/Password** y **Firestore Database** (modo
+   producción; las reglas ya están en `firestore.rules`).
+3. Pegá la config de **Configuración del proyecto → Tus apps → Web app** en
+   `src/firebase.ts`.
+4. `cp .firebaserc.example .firebaserc` y poné el ID del proyecto nuevo.
+5. `npm install`
+
+### Cargar los datos iniciales (residentes + calendario)
+
+1. Editá `scripts/residents.seed.json` con los emails reales de cada R1 y
+   contraseñas provisorias (cada quien las cambia con "olvidé mi contraseña"
+   en el login).
 2. Descargá una clave de cuenta de servicio: Firebase Console →
    Configuración del proyecto → **Cuentas de servicio** → Generar nueva clave
    privada → guardala como `scripts/serviceAccountKey.json` (ya está en
-   `.gitignore`, nunca se sube a git).
-3. `npm run seed` — crea los usuarios de Auth, los documentos de
-   `residents`, el calendario y las guardias de octubre 2026 (tal como estaba
-   en el Excel que armaron).
+   `.gitignore`, nunca se sube a git). Borrala del disco apenas termines —
+   es la llave maestra del proyecto.
+3. `npm run seed` — crea los usuarios de Auth y carga `residents` +
+   calendario + guardias.
+4. `npm run deploy:rules` — publica `firestore.rules` (usa el mismo archivo
+   del paso 2; esquiva el permiso de Service Usage que
+   `firebase deploy --only firestore` necesita y que el service account del
+   Admin SDK no tiene por default).
 
-### Desarrollo y deploy
+### Desarrollo local
 
 ```bash
-npm run dev        # local, con hot reload
-npm run build       # typecheck + build de producción a dist/
-npx firebase-tools deploy --only hosting,firestore  # publicar (requiere `firebase login` antes)
+npm run dev     # local, con hot reload (usa el mismo Firebase de producción)
+npm run build    # typecheck + build de producción a dist/
 ```
-
-Si el service account del Admin SDK no tiene permisos de **Service Usage**
-(es el caso del que crea Firebase por default), `firebase deploy --only
-firestore` falla con un 403 al chequear si la API está habilitada. Para ese
-caso, `npm run deploy:rules` publica `firestore.rules` directamente contra la
-Firebase Rules API usando `scripts/serviceAccountKey.json` (sin pasar por ese
-chequeo) — necesita el mismo archivo que usa `npm run seed`.
 
 ## Estructura del código
 

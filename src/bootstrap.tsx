@@ -1,24 +1,25 @@
 import { StrictMode } from 'react';
-import { BrowserRouter } from 'react-router-dom';
+import { HashRouter } from 'react-router-dom';
 import { AuthProvider } from './context/AuthContext';
 import ErrorBoundary from './components/ErrorBoundary';
 import App from './App';
 
-// Separado de main.tsx a propósito: este módulo (y todo lo que importa,
-// incluido src/firebase.ts) solo se carga si la config de Firebase está
-// presente — ver main.tsx. Así, si falta el .env, nunca llegamos a invocar
-// getAuth()/getFirestore() con una config inválida (eso revienta de forma
-// sincrónica al importar el módulo, antes de que exista árbol de React para
-// que un ErrorBoundary lo atrape).
+// Separado de main.tsx a propósito: así Firebase + Recharts quedan en un
+// chunk lazy en vez del bundle inicial (ver main.tsx).
+//
+// Usa HashRouter (URLs tipo /#/calendario) en vez de BrowserRouter: la app
+// se publica en GitHub Pages, que no tiene forma de redirigir rutas propias
+// de la SPA (/calendario, /admin) de vuelta a index.html — con hash routing
+// esas rutas nunca llegan al servidor, así que no hace falta configurar nada ahí.
 export default function Bootstrap() {
   return (
     <StrictMode>
       <ErrorBoundary>
-        <BrowserRouter>
+        <HashRouter>
           <AuthProvider>
             <App />
           </AuthProvider>
-        </BrowserRouter>
+        </HashRouter>
       </ErrorBoundary>
     </StrictMode>
   );

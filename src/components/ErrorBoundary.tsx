@@ -26,9 +26,8 @@ export default class ErrorBoundary extends Component<Props, State> {
           <div className="max-w-md">
             <h1 className="text-lg font-semibold mb-2">Algo salió mal</h1>
             <p className="text-sm text-text-dim mb-3">
-              La app no pudo conectarse a Firebase correctamente. Si sos quien la configuró,
-              revisá las variables <code className="bg-surface-2 px-1 rounded">VITE_FIREBASE_*</code> en
-              tu <code className="bg-surface-2 px-1 rounded">.env</code>.
+              La app tuvo un error inesperado. Probá recargar la página; si sigue, avisale a
+              Bea o a Ana con el detalle de abajo.
             </p>
             <pre className="text-xs text-left bg-surface-2 border border-border rounded-lg p-3 overflow-auto">
               {this.state.error.message}
