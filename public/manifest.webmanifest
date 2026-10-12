@@ -1,0 +1,16 @@
+{
+  "name": "Guardias R1",
+  "short_name": "Guardias R1",
+  "description": "Guardias, pedidos y métricas de la residencia",
+  "lang": "es-AR",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "background_color": "#6d5bd0",
+  "theme_color": "#6d5bd0",
+  "icons": [
+    { "src": "icons/icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
+    { "src": "icons/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" },
+    { "src": "icons/icon-maskable-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+  ]
+}

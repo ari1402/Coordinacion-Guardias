@@ -52,19 +52,25 @@ Con ella GitHub publica las reglas de seguridad y la app en cada cambio.
 Mientras no esté el secret, la publicación falla a propósito y queda online la
 versión anterior.
 
-### 2. Mail de feedback a las 8 AM (opcional)
+### 2. Recordatorio de feedback a las 8 AM
 
-`.github/workflows/feedback-mail.yml` corre todos los días a las 8:00 (hora
-Argentina): a quien hizo guardia ayer y no cargó feedback le manda un mail con
-botones "Dormí / No dormí" que abren la app con la respuesta precargada.
-Se manda desde una cuenta de Gmail:
+`.github/workflows/feedback-reminder.yml` corre todos los días a las 8:00 (hora
+Argentina): a quien hizo guardia ayer y no cargó feedback le manda una
+**notificación push** que abre la app en el formulario de esa guardia. Además,
+el Inicio muestra siempre el feedback pendiente.
 
-1. En esa cuenta de Google: activar verificación en 2 pasos y crear una
-   **contraseña de aplicación** (https://myaccount.google.com/apppasswords).
-2. Agregar dos secrets más: `SMTP_USER` (el Gmail) y `SMTP_PASS` (la
-   contraseña de aplicación).
-3. Para probar: Actions → *Mail de feedback post-guardia* → Run workflow (con
-   "solo mostrar" tildado no manda nada, solo lista a quién le mandaría).
+- Cada una activa las notificaciones desde **Inicio** o **Mi cuenta → Activar
+  notificaciones**, en cada dispositivo. En iPhone primero hay que agregar la
+  app a la pantalla de inicio (Safari → Compartir → *Agregar a pantalla de
+  inicio*) y abrirla desde ese ícono.
+- En Admin → Feedback, la columna 🔔 muestra quién las tiene activadas.
+- Prueba: cualquier push que cambie `feedback-reminder.yml` (por ejemplo el
+  número de `# prueba:`) manda un aviso de prueba solo a `TEST_PUSH_DEFAULT`.
+
+**Mail (opcional):** si además se cargan los secrets `SMTP_USER` (un Gmail) y
+`SMTP_PASS` (una [contraseña de aplicación](https://myaccount.google.com/apppasswords)
+de esa cuenta, requiere verificación en 2 pasos), también se manda un mail con
+botones "Dormí / No dormí".
 
 ### 3. Feriados
 

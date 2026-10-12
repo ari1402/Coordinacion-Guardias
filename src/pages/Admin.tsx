@@ -5,7 +5,7 @@ import { Link, useSearchParams } from 'react-router-dom';
 import Badge from '../components/Badge';
 import { Card, Dot, Empty, MonthNav, PageHeader, Segmented, btnPrimary, btnSecondary, inputBase, inputCls } from '../components/ui';
 import { db } from '../firebase';
-import { useActivity, useCalendarData, useFeedback, useResidents, useResidentsById } from '../hooks/data';
+import { useActivity, useCalendarData, useFeedback, usePushTokens, useResidents, useResidentsById } from '../hooks/data';
 import { useColors } from '../hooks/useColors';
 import { currentMonthKey } from '../hooks/useMonth';
 import { effectiveMonthConfig, isoWeekday, monthLabel, resolveMonth, shiftMonthKey, shortDateLabel } from '../lib/dates';
@@ -438,6 +438,7 @@ function FeedbackAdmin() {
   const byId = useResidentsById(residents);
   const color = useColors(residents);
   const { feedback, loading } = useFeedback();
+  const pushTokens = usePushTokens(true);
 
   const perWeekday = WEEKDAY_KEYS.map((_, wd) => {
     const list = feedback.filter((f) => isoWeekday(f.date) === wd && typeof f.carga === 'number');
@@ -454,7 +455,7 @@ function FeedbackAdmin() {
   return (
     <div className="flex flex-col gap-4">
       <div className="grid gap-4 lg:grid-cols-2">
-        <Card title="Por residente">
+        <Card title="Por residente" subtitle="🔔 = tiene el recordatorio push activado en algún dispositivo">
           <table className="w-full text-sm">
             <thead>
               <tr className="text-xs text-text-dim border-b border-border">
@@ -462,6 +463,7 @@ function FeedbackAdmin() {
                 <th className="text-right font-medium">Respuestas</th>
                 <th className="text-right font-medium">Sin dormir</th>
                 <th className="text-right font-medium">Carga prom.</th>
+                <th className="text-right font-medium">🔔</th>
               </tr>
             </thead>
             <tbody>
@@ -479,6 +481,9 @@ function FeedbackAdmin() {
                     <td className="text-right tabular-nums">{list.length}</td>
                     <td className="text-right tabular-nums">{list.filter((f) => !f.slept).length}</td>
                     <td className="text-right tabular-nums">{c.length ? (c.reduce((a, b) => a + b, 0) / c.length).toFixed(1) : '—'}</td>
+                    <td className="text-right" title={pushTokens.filter((t) => t.residentId === r.id).map((t) => t.device).join(', ')}>
+                      {pushTokens.some((t) => t.residentId === r.id) ? '✓' : <span className="text-text-dim">—</span>}
+                    </td>
                   </tr>
                 );
               })}

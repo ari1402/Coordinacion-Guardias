@@ -1,25 +1,31 @@
-name: Mail de feedback post-guardia
+name: Recordatorio de feedback post-guardia
 
 on:
   schedule:
     - cron: '0 11 * * *' # 08:00 en Argentina (UTC-3). GitHub puede demorarlo unos minutos.
-  # Un push que toca este archivo manda solo un mail de prueba (no la corrida diaria).
+  # Un push que toca este archivo manda solo un aviso de prueba (no la corrida
+  # diaria) a la residente de TEST_PUSH_DEFAULT. Para repetir la prueba alcanza
+  # con cambiar el número de abajo.
+  # prueba: 1
   push:
     branches: [claude/guardias-firebase-webapp-0vgyas]
-    paths: ['.github/workflows/feedback-mail.yml']
+    paths: ['.github/workflows/feedback-reminder.yml']
   workflow_dispatch:
     inputs:
       dry_run:
-        description: 'Solo mostrar a quién se mandaría (no manda ni escribe nada)'
+        description: 'Solo mostrar a quién se avisaría (no manda ni escribe nada)'
         type: boolean
         default: true
       test_to:
-        description: 'Mandar SOLO un mail de prueba a esta dirección (vacío = corrida normal)'
+        description: 'Mandar SOLO un aviso de prueba a la residente con este mail (vacío = corrida normal)'
         type: string
         default: ''
 
 permissions:
   contents: read
+
+env:
+  TEST_PUSH_DEFAULT: residente@example.com
 
 jobs:
   send:
@@ -31,10 +37,10 @@ jobs:
           node-version: 22
           cache: npm
       - run: npm ci
-      - run: node scripts/send-feedback-mails.mjs
+      - run: node scripts/feedback-reminders.mjs
         env:
           FIREBASE_SERVICE_ACCOUNT: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
           SMTP_USER: ${{ secrets.SMTP_USER }}
           SMTP_PASS: ${{ secrets.SMTP_PASS }}
           DRY_RUN: ${{ inputs.dry_run && 'true' || 'false' }}
-          TEST_TO: ${{ inputs.test_to || (github.event_name == 'push' && 'residente@example.com') || '' }}
+          TEST_TO: ${{ inputs.test_to || (github.event_name == 'push' && env.TEST_PUSH_DEFAULT) || '' }}

@@ -91,6 +91,15 @@ export function useActivity(max = 400) {
   return { activity: data, loading, error };
 }
 
+/** Dispositivos con notificaciones activadas (solo admins pueden listarlos). */
+export function usePushTokens(enabled: boolean) {
+  const { data } = useCollection<{ id: string; residentId: string; device?: string; updatedAt: string }>(
+    enabled ? 'pushTokens' : '',
+    [],
+  );
+  return enabled ? data : [];
+}
+
 export function useDrafts(enabled: boolean) {
   const { data, loading, error } = useCollection<ScheduleDraft>(enabled ? 'scheduleDrafts' : '', []);
   return { drafts: enabled ? data : [], loading: enabled && loading, error };

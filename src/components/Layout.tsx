@@ -1,8 +1,10 @@
 import clsx from 'clsx';
 import { signOut } from 'firebase/auth';
+import { useEffect } from 'react';
 import { NavLink, Outlet } from 'react-router-dom';
 import { useAuthContext } from '../context/AuthContext';
 import { auth } from '../firebase';
+import { disablePush, refreshPush } from '../lib/push';
 
 const NAV = [
   { to: '/', label: 'Inicio', icon: '🏠', end: true },
@@ -28,6 +30,14 @@ function navCls(isActive: boolean, admin = false) {
 
 export default function Layout() {
   const { resident, isAdmin } = useAuthContext();
+  const residentId = resident?.id;
+  useEffect(() => {
+    if (residentId) refreshPush(residentId);
+  }, [residentId]);
+
+  // Al salir se borra el token: el dispositivo deja de recibir avisos a su nombre.
+  const salir = () => disablePush().finally(() => signOut(auth));
+
   const items = [...NAV, ...(isAdmin ? [{ to: '/admin', label: 'Admin', icon: '🛠️', end: false, admin: true }] : [])];
 
   return (
@@ -50,7 +60,7 @@ export default function Layout() {
           <NavLink to="/cuenta" className={({ isActive }) => navCls(isActive)}>
             <span>🔑</span>Mi cuenta
           </NavLink>
-          <button onClick={() => signOut(auth)} className={clsx(navCls(false), 'hover:text-danger')}>
+          <button onClick={salir} className={clsx(navCls(false), 'hover:text-danger')}>
             <span>↩</span>Salir
           </button>
         </div>
@@ -64,7 +74,7 @@ export default function Layout() {
           </span>
           <span className="flex gap-3 text-sm text-text-dim">
             <NavLink to="/cuenta">🔑</NavLink>
-            <button onClick={() => signOut(auth)}>Salir</button>
+            <button onClick={salir}>Salir</button>
           </span>
         </div>
         <nav className="flex gap-1 overflow-x-auto px-3 pb-2">

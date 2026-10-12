@@ -146,6 +146,19 @@ service cloud.firestore {
       allow update, delete: if false;
     }
 
+    // Tokens de notificaciones push (doc id = token FCM del dispositivo). Cada
+    // una registra solo los suyos; un token es imposible de adivinar, así que
+    // se permite reasignarlo si en ese dispositivo entra otra persona. Las
+    // admins los pueden listar para ver quién tiene los avisos activados.
+    match /pushTokens/{token} {
+      allow get: if isAdmin() || (isSignedIn() && resource.data.residentId == request.auth.uid);
+      allow list: if isAdmin();
+      allow create, update: if isResident()
+        && request.resource.data.residentId == request.auth.uid
+        && request.resource.data.keys().hasOnly(['residentId', 'device', 'updatedAt']);
+      allow delete: if isAdmin() || (isSignedIn() && resource.data.residentId == request.auth.uid);
+    }
+
     // Sorteos: se sortean una sola vez (pendiente -> sorteado), con un orden
     // que contiene exactamente a los participantes, y el resultado ya no se
     // puede tocar ni borrar. Los de una guardia del cronograma son de admins.

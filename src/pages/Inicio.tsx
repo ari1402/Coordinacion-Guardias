@@ -3,6 +3,7 @@ import { useMemo } from 'react';
 import { Link } from 'react-router-dom';
 import Badge from '../components/Badge';
 import FeedbackForm from '../components/FeedbackForm';
+import PushCard from '../components/PushCard';
 import RangeBar from '../components/RangeBar';
 import { Card, Dot, Empty, ResidentChip } from '../components/ui';
 import { useAuthContext } from '../context/AuthContext';
@@ -174,6 +175,8 @@ export default function Inicio() {
           <FeedbackForm key={pending[pending.length - 1].id} shift={pending[pending.length - 1]} residentId={me.id} compact />
         </Card>
       )}
+
+      <PushCard residentId={me.id} inicio />
 
       <Card title="Próximos 7 días">
         <div className="grid grid-cols-7 gap-1.5 text-center">
