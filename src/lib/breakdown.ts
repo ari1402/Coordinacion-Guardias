@@ -42,14 +42,22 @@ export function buildBreakdown(
   slots: DraftSlot[],
   residentIds: string[],
   prior: Record<string, PriorCounts> = {},
-  /** Guardias de cada una fuera de este mes (para los findes que cruzan de mes). */
-  outside: Record<string, string[]> = {},
-  /** Quienes están de vacaciones este mes: sus findes no cuentan como libres. */
-  away: Set<string> = new Set(),
+  {
+    outside = {},
+    away = new Set(),
+    holidays: extraHolidays = new Set(),
+  }: {
+    /** Guardias de cada una fuera de este mes (para los findes que cruzan de mes). */
+    outside?: Record<string, string[]>;
+    /** Quienes están de vacaciones este mes: sus findes no cuentan como libres. */
+    away?: Set<string>;
+    /** Todos los feriados (también los de otros meses), para los findes que cruzan de mes. */
+    holidays?: Set<string>;
+  } = {},
 ): Record<string, PersonBreakdown> {
   const dayByDate = new Map(days.map((d) => [d.date, d]));
   const saturdays = days.filter((d) => d.weekday === 5);
-  const holidays = new Set(days.filter((d) => d.isHoliday).map((d) => d.date));
+  const holidays = new Set([...extraHolidays, ...days.filter((d) => d.isHoliday).map((d) => d.date)]);
   const isHoliday = (d: string) => holidays.has(d);
   const blocks = saturdays.map((sat) => weekendBlock(sat.date, isHoliday));
   // Finde que viene del mes anterior (p. ej. sáb 31/10 + dom 1/11): también lo

@@ -86,8 +86,12 @@ export default function Inicio() {
     return m;
   }, [periodDays, today, storedDays, monthConfigs]);
   const counters = useMemo(
-    () => computeAllEquityCounters(active.map((r) => r.id), valid, periodDays, awayMonths(rotations)),
-    [active, valid, periodDays, rotations],
+    () =>
+      computeAllEquityCounters(active.map((r) => r.id), valid, periodDays, {
+        away: awayMonths(rotations),
+        holidays: new Set(storedDays.filter((d) => d.isHoliday).map((d) => d.date)),
+      }),
+    [active, valid, periodDays, rotations, storedDays],
   );
 
   const week = Array.from({ length: 7 }, (_, i) => addDaysISO(today, i));

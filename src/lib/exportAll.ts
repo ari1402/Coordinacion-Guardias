@@ -74,7 +74,10 @@ function summarySheet(data: AllData): Sheet {
     residents.map((r) => r.id),
     shifts,
     days,
-    awayMonths(data.rotations as unknown as Rotation[]),
+    {
+      away: awayMonths(data.rotations as unknown as Rotation[]),
+      holidays: new Set((data.calendarDays as unknown as CalendarDay[]).filter((d) => d.isHoliday).map((d) => d.date)),
+    },
   );
   const header = [
     'Residente', 'Guardias', 'Lun–Mié', 'Jue', 'Vie', 'Sáb', 'Sáb sin jueves', 'Dom', 'Sáb + pref.', 'Feriados',

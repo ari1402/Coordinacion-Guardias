@@ -93,9 +93,11 @@ export function monthSheets({ monthKey, days, shifts, residents, rotations = [],
         },
       ]),
     ),
-    Object.fromEntries(
-      people.map((r) => [r.id, shifts.filter((s) => valid(s) && !s.date.startsWith(monthKey) && s.actualResidentId === r.id).map((s) => s.date)]),
-    ),
+    {
+      outside: Object.fromEntries(
+        people.map((r) => [r.id, shifts.filter((s) => valid(s) && !s.date.startsWith(monthKey) && s.actualResidentId === r.id).map((s) => s.date)]),
+      ),
+    },
   );
   const rotation = (id: string) => rotations.find((r) => r.id === id)?.months[monthKey] ?? '';
   const summaryHeader = [

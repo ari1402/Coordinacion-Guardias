@@ -7,16 +7,24 @@ import { addDaysISO, gapsBetween, hasTag, monthKey, monthsBetween, resolveMonths
  * histórico. `days` define el período: solo se cuentan fines de semana
  * libres de esos días, y deben incluir los días de todas las guardias.
  * `away` = meses en que no hace guardias (vacaciones): sus findes no cuentan
- * como "findes libres". `context` = todas las guardias (de cualquier mes),
- * para saber si un finde que cruza de mes quedó libre (p. ej. sáb 31/10 y
- * dom 1/11): si no se pasa, solo se miran las de `shifts`.
+ * como "findes libres".
+ *
+ * Cada finde se cuenta entero y una sola vez, aunque cruce de mes: se evalúa
+ * en su sábado (el finde 31/10–1/11 es de octubre) mirando todos sus días.
+ * `context` = todas las guardias (de cualquier mes) y `holidays` = todos los
+ * feriados, para ver los días del finde que caen fuera del período.
  */
+export interface EquityOptions {
+  away?: Set<string>;
+  context?: Shift[];
+  holidays?: Set<string>;
+}
+
 export function computeEquityCounters(
   residentId: string,
   shifts: Shift[],
   days: ResolvedDay[],
-  away?: Set<string>,
-  context?: Shift[],
+  { away, context, holidays: extraHolidays }: EquityOptions = {},
 ): EquityCounters {
   const dayById = new Map(days.map((d) => [d.id, d]));
   const mine = shifts
@@ -86,7 +94,7 @@ export function computeEquityCounters(
   // Findes libres: desde la noche anterior (último día hábil) hasta el último
   // día no hábil. Un finde largo libre es, p. ej., viernes a la noche,
   // sábado, domingo y lunes feriado sin guardia.
-  const holidays = new Set(days.filter((d) => d.isHoliday).map((d) => d.date));
+  const holidays = new Set([...(extraHolidays ?? []), ...days.filter((d) => d.isHoliday).map((d) => d.date)]);
   const isHoliday = (d: string) => holidays.has(d);
   for (const day of days) {
     if (day.weekday !== 5) continue; // un finde se evalúa una vez, en su sábado
@@ -113,10 +121,11 @@ export function computeAllEquityCounters(
   residentIds: string[],
   shifts: Shift[],
   days: ResolvedDay[],
-  away?: Record<string, Set<string>>,
-  context?: Shift[],
+  { away, context, holidays }: { away?: Record<string, Set<string>>; context?: Shift[]; holidays?: Set<string> } = {},
 ): Record<string, EquityCounters> {
-  return Object.fromEntries(residentIds.map((id) => [id, computeEquityCounters(id, shifts, days, away?.[id], context)]));
+  return Object.fromEntries(
+    residentIds.map((id) => [id, computeEquityCounters(id, shifts, days, { away: away?.[id], context, holidays })]),
+  );
 }
 
 /** Meses (ordenados) que tienen al menos una guardia cargada. */

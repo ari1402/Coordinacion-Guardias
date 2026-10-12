@@ -71,8 +71,13 @@ export default function Metricas() {
     [period, valid, storedDays, monthConfigs],
   );
   const counters = useMemo(
-    () => computeAllEquityCounters(active.map((r) => r.id), periodShifts, days, awayMonths(rotations), valid),
-    [active, periodShifts, days, rotations, valid],
+    () =>
+      computeAllEquityCounters(active.map((r) => r.id), periodShifts, days, {
+        away: awayMonths(rotations),
+        context: valid,
+        holidays: new Set(storedDays.filter((d) => d.isHoliday).map((d) => d.date)),
+      }),
+    [active, periodShifts, days, rotations, valid, storedDays],
   );
 
   const stats = COLUMNS.map((c) => {

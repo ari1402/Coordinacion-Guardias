@@ -327,15 +327,48 @@ describe('findes que cruzan de mes', () => {
     const octShifts = all.filter((s) => s.date.startsWith('2026-10'));
     // Vista de octubre: sin mirar noviembre parecería libre; con el contexto, no.
     const sinContexto = computeEquityCounters('gil', octShifts, oct);
-    const conContexto = computeEquityCounters('gil', octShifts, oct, undefined, all);
+    const conContexto = computeEquityCounters('gil', octShifts, oct, { context: all });
     expect(conContexto.findesLibresA).toBe(sinContexto.findesLibresA - 1);
     // Detalle de noviembre del generador: ese finde cuenta como del mes y no está libre.
-    const b = buildBreakdown(nov, [{ date: '2026-11-01', slotIndex: 0, residentId: 'gil' }], ['gil'], {}, { gil: ['2026-10-05'] }).gil;
+    const b = buildBreakdown(nov, [{ date: '2026-11-01', slotIndex: 0, residentId: 'gil' }], ['gil'], {}, { outside: { gil: ['2026-10-05'] } }).gil;
     expect(b.findesDelMes).toBe(5); // 31/10–1/11, 7, 14, 21 y 28
     expect(b.findesLibres).toBe(4);
     // Acumulado: octubre ya había contado el 31/10 como libre (sin ver el 1/11); no se cuenta dos veces.
     const prior = { gil: { ...priorFromCounters(undefined), findesLibres: 3 } };
-    const b2 = buildBreakdown(nov, [{ date: '2026-11-01', slotIndex: 0, residentId: 'gil' }], ['gil'], prior, { gil: ['2026-10-05'] }).gil;
+    const b2 = buildBreakdown(nov, [{ date: '2026-11-01', slotIndex: 0, residentId: 'gil' }], ['gil'], prior, { outside: { gil: ['2026-10-05'] } }).gil;
     expect(b2.cumFindesLibres).toBe(3 - 1 + 4);
+  });
+});
+
+describe('findes enteros aunque crucen de mes', () => {
+  // Finde largo inventado que cruza de mes: vie 30/10 (noche), sáb 31/10, dom 1/11 y lun 2/11 feriado.
+  const hol: CalendarDay[] = [...holidays, { id: '2026-11-02', date: '2026-11-02', isHoliday: true }];
+  const holSet = new Set(hol.filter((d) => d.isHoliday).map((d) => d.date));
+  const oct = resolveMonth('2026-10', hol, configs);
+  const nov = resolveMonth('2026-11', hol, configs);
+  const shift = (date: string, who = 'gil') => ({ id: `${date}_${who}`, date, slotIndex: 0, assignedResidentId: who, actualResidentId: who, status: 'programada' as const, createdAt: '' });
+
+  it('un finde largo que cruza de mes se reconoce como largo desde los dos lados', () => {
+    expect(hasTag(oct.find((d) => d.date === '2026-10-31')!, 'finde_largo')).toBe(true);
+    expect(hasTag(nov.find((d) => d.date === '2026-11-02')!, 'finde_largo')).toBe(true);
+    const libre = computeEquityCounters('gil', [shift('2026-10-05')], oct, { holidays: holSet });
+    expect(libre.findesLibresLargos).toBe(2); // 9–12/10 y 30/10–2/11, completos y libres
+    const sinFeriadoDeNoviembre = computeEquityCounters('gil', [shift('2026-10-05')], oct);
+    expect(sinFeriadoDeNoviembre.findesLibresLargos).toBe(1); // sin ver el feriado del 2/11, ese finde parecería común
+  });
+
+  it('mes a mes da lo mismo que todo junto (cada finde se cuenta una vez)', () => {
+    for (const novShifts of [['2026-11-02'], ['2026-11-01'], ['2026-11-10'], []]) {
+      const octShifts = [shift('2026-10-05'), shift('2026-10-20')];
+      const all = [...octShifts, ...novShifts.map((d) => shift(d))];
+      const total = computeEquityCounters('gil', all, [...oct, ...nov], { holidays: holSet }).findesLibresA;
+      // Como lo hace el generador: acumulado hasta octubre (sin ver noviembre) + detalle de noviembre.
+      const prior = { gil: priorFromCounters(computeEquityCounters('gil', octShifts, oct, { holidays: holSet })) };
+      const nb = buildBreakdown(nov, novShifts.map((d) => ({ date: d, slotIndex: 0, residentId: 'gil' })), ['gil'], prior, {
+        outside: { gil: octShifts.map((s) => s.date) },
+        holidays: holSet,
+      }).gil;
+      expect(nb.cumFindesLibres).toBe(total);
+    }
   });
 });

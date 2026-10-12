@@ -93,7 +93,7 @@ export default function Generador() {
       active.map((r) => r.id),
       before,
       resolvePeriod(before, storedDays, monthConfigs),
-      awayMonths(rotations),
+      { away: awayMonths(rotations), holidays: new Set(storedDays.filter((d) => d.isHoliday).map((d) => d.date)) },
     );
     return Object.fromEntries(
       active.map((r) => {
@@ -171,8 +171,13 @@ export default function Generador() {
     return m;
   }, [shifts, monthKey]);
   const breakdown = useMemo(
-    () => buildBreakdown(days, detailSlots, active.map((r) => r.id), prior, outsideDates, new Set(onVacation.map((r) => r.id))),
-    [days, detailSlots, active, prior, outsideDates, onVacation],
+    () =>
+      buildBreakdown(days, detailSlots, active.map((r) => r.id), prior, {
+        outside: outsideDates,
+        away: new Set(onVacation.map((r) => r.id)),
+        holidays: new Set(storedDays.filter((d) => d.isHoliday).map((d) => d.date)),
+      }),
+    [days, detailSlots, active, prior, outsideDates, onVacation, storedDays],
   );
 
   function runGenerator() {
