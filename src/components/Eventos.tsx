@@ -125,7 +125,7 @@ export default function EventsPanel() {
                   </p>
                   <p className="text-sm text-text-dim mt-0.5">{rangeLabel(ev)}</p>
                   {next && <p className="text-sm mt-1">Próxima: <b className="capitalize">{shortDateLabel(next)}</b></p>}
-                  {ev.notes && <p className="text-sm mt-2 whitespace-pre-wrap">{ev.notes}</p>}
+                  {ev.notes && <p className="text-sm mt-2 whitespace-pre-wrap [overflow-wrap:anywhere]">{ev.notes}</p>}
                 </div>
                 {(isAdmin || ev.createdBy === me?.id) && (
                   <button onClick={() => remove(ev)} className="text-xs text-danger underline shrink-0">

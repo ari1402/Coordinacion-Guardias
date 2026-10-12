@@ -377,7 +377,7 @@ function QuienEntro({ residents }: { residents: Resident[] }) {
   return (
     <Card
       title="¿Quién ya entró?"
-      subtitle={`Último ingreso a la app y si tiene las notificaciones activadas. ${missing ? `${missing} todavía no entraron (se registra desde el 13/10).` : 'Entraron todas.'}`}
+      subtitle={`Último ingreso a la app, si ya cambió la contraseña temporal (🔑) y si tiene las notificaciones activadas (🔔). ${missing ? `${missing} todavía no entraron (se registra desde el 13/10).` : 'Entraron todas.'}`}
     >
       <ul className="grid gap-2 sm:grid-cols-2">
         {list.map((r) => {
@@ -388,6 +388,12 @@ function QuienEntro({ residents }: { residents: Resident[] }) {
               <span className="font-medium">{r.shortName}</span>
               <span className="flex items-center gap-2">
                 {seen ? <span className="text-text-dim">{seen}</span> : <Badge tone="warning">no entró</Badge>}
+                <span
+                  title={r.passwordChangedAt ? 'Ya cambió la contraseña temporal' : 'Todavía no cambió la contraseña temporal'}
+                  className={r.passwordChangedAt ? '' : 'opacity-30'}
+                >
+                  🔑
+                </span>
                 <span title={push ? 'Notificaciones activadas' : 'Sin notificaciones'} className={push ? '' : 'opacity-30'}>
                   🔔
                 </span>

@@ -54,7 +54,7 @@ export function PrivateNotesCard({ month, className }: { month: string; classNam
   if (!note) return null;
   return (
     <Card title={`🔒 Tus notas de ${monthLabel(month)}`} subtitle="Solo las ves vos." className={className}>
-      <p className="text-sm whitespace-pre-wrap">{note.text}</p>
+      <p className="text-sm whitespace-pre-wrap [overflow-wrap:anywhere]">{note.text}</p>
     </Card>
   );
 }

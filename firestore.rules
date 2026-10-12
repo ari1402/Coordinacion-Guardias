@@ -50,7 +50,7 @@ service cloud.firestore {
     match /residents/{uid} {
       allow read: if isSignedIn();
       allow create, delete: if isAdmin();
-      allow update: if isAdmin() || (isSelf(uid) && onlyChanged(['name', 'shortName', 'email', 'birthday', 'lastSeenAt']));
+      allow update: if isAdmin() || (isSelf(uid) && onlyChanged(['name', 'shortName', 'email', 'birthday', 'lastSeenAt', 'passwordChangedAt']));
     }
 
     match /monthConfigs/{id} {

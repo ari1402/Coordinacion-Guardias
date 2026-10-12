@@ -16,6 +16,8 @@ export interface Resident {
   birthday?: string;
   /** Última vez que abrió la app (se actualiza como mucho una vez por día). */
   lastSeenAt?: string;
+  /** Cuándo cambió la contraseña temporal por la suya. Sin esto, la app le pide cambiarla al entrar. */
+  passwordChangedAt?: string;
   /** Recibe el push del día 10 ("toca generar las guardias") y los avisos de prueba. */
   avisoGenerar?: boolean;
 }

@@ -628,7 +628,7 @@ function RulesCard({
             {special.map((d) => `${Number(d.date.slice(8))}${d.notes ? `: ${d.notes}` : ' sin R1'}`).join(' · ')}
           </p>
         )}
-        {privateNote && <p className="whitespace-pre-wrap bg-accent-soft rounded-lg p-2 text-xs">🔒 {privateNote}</p>}
+        {privateNote && <p className="whitespace-pre-wrap [overflow-wrap:anywhere] bg-accent-soft rounded-lg p-2 text-xs">🔒 {privateNote}</p>}
       </div>
     </Card>
   );

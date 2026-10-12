@@ -4,7 +4,7 @@ import { useAuthContext } from './context/AuthContext';
 import Admin from './pages/Admin';
 import Calendario from './pages/Calendario';
 import Camada from './pages/Camada';
-import CambiarPassword from './pages/CambiarPassword';
+import CambiarPassword, { CambioObligatorio } from './pages/CambiarPassword';
 import Cambios from './pages/Cambios';
 import Feedback from './pages/Feedback';
 import Guia from './pages/Guia';
@@ -38,6 +38,7 @@ export default function App() {
   if (loading) return <FullScreenLoader />;
   if (!user) return <Login />;
   if (!resident) return <PendingSetup />;
+  if (!resident.passwordChangedAt) return <CambioObligatorio />;
 
   return (
     <Routes>

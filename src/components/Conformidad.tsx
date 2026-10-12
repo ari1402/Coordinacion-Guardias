@@ -127,7 +127,7 @@ export function AckAlerts({ acks, byId, meId }: { acks: MonthAck[]; byId: Map<st
               <p>
                 <b>{byId.get(a.residentId)?.name}</b> <span className="text-text-dim">· {monthLabel(a.month)}</span>
               </p>
-              <p className="mt-0.5 whitespace-pre-wrap">“{a.comment}”</p>
+              <p className="mt-0.5 whitespace-pre-wrap [overflow-wrap:anywhere]">“{a.comment}”</p>
             </div>
             <div className="flex gap-3 items-center">
               <Link to={`/admin/generador?mes=${a.month}`} className="text-xs text-accent underline">

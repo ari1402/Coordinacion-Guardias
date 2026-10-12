@@ -1,0 +1,30 @@
+name: Borrar corridas viejas de Actions
+
+# Botón manual (Actions → Borrar corridas viejas de Actions → Run workflow):
+# borra todas las corridas anteriores de las automatizaciones, con sus logs.
+# No toca las de "Copia de seguridad" (ahí están las copias). El repo es
+# público y los logs viejos podían mostrar nombres o mails.
+on:
+  workflow_dispatch:
+
+permissions:
+  actions: write
+
+jobs:
+  borrar:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Borrar corridas viejas
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+          RUN_ID: ${{ github.run_id }}
+        run: |
+          gh api --paginate "repos/$REPO/actions/runs?per_page=100" \
+            --jq ".workflow_runs[] | select(.id != $RUN_ID and .name != \"Copia de seguridad\" and .status == \"completed\") | .id" > ids.txt
+          total=$(wc -l < ids.txt)
+          ok=0
+          while read -r id; do
+            if gh api -X DELETE "repos/$REPO/actions/runs/$id" > /dev/null 2>&1; then ok=$((ok + 1)); fi
+          done < ids.txt
+          echo "Borradas $ok de $total corridas."

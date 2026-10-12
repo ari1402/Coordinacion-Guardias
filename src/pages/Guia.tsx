@@ -36,8 +36,8 @@ function GuiaTodas() {
       <Section icon="👋" title="Primeros pasos (2 minutos)" open>
         <ol>
           <li>
-            Entrá con tu mail y la contraseña temporal que te pasaron. Después, en <Go to="/cuenta">🔑 Mi cuenta</Go>, cambiala por
-            una tuya.
+            Entrá con tu mail y la contraseña temporal que te pasaron. La primera vez la app te pide cambiarla por una tuya (después
+            la podés volver a cambiar en <Go to="/cuenta">🔑 Mi cuenta</Go>).
           </li>
           <li>
             <b>Instalá la app en el celu</b> (queda como un ícono, sin barra del navegador):

@@ -69,13 +69,14 @@ function Carriles() {
   );
 }
 
+/** Convierte en link lo que empieza con http(s):// o www. (los links largos se cortan para no romper el ancho). */
 function Linkify({ text }: { text: string }) {
-  const parts = text.split(/(https?:\/\/[^\s]+)/g);
+  const parts = text.split(/((?:https?:\/\/|www\.)[^\s]+)/g);
   return (
     <>
       {parts.map((p, i) =>
-        /^https?:\/\//.test(p) ? (
-          <a key={i} href={p} target="_blank" rel="noreferrer" className="text-accent underline break-all">
+        /^(https?:\/\/|www\.)/.test(p) ? (
+          <a key={i} href={p.startsWith('www.') ? `https://${p}` : p} target="_blank" rel="noreferrer" className="text-accent underline break-all">
             {p}
           </a>
         ) : (
@@ -158,7 +159,7 @@ function Tareas() {
         </form>
       </Card>
 
-      <div className="lg:col-span-3 flex flex-col gap-3">
+      <div className="lg:col-span-3 flex flex-col gap-3 min-w-0">
         <label className="flex items-center gap-2 text-sm text-text-dim">
           <input type="checkbox" checked={onlyMine} onChange={(e) => setOnlyMine(e.target.checked)} />
           Solo las que me tocan
@@ -168,7 +169,7 @@ function Tareas() {
         ) : (
           <div className="grid gap-3 md:grid-cols-3">
             {columns.map((status) => (
-              <div key={status} className="bg-surface-2 rounded-2xl p-3 flex flex-col gap-2 min-h-[120px]">
+              <div key={status} className="bg-surface-2 rounded-2xl p-3 flex flex-col gap-2 min-h-[120px] min-w-0">
                 <p className="text-xs font-semibold text-text-dim uppercase tracking-wide">
                   {STATUS_LABEL[status]} · {visible.filter((t) => t.status === status).length}
                 </p>
@@ -208,7 +209,7 @@ function TaskCard({
     });
   };
   return (
-    <div className="bg-surface border border-border rounded-xl p-3 flex flex-col gap-1.5">
+    <div className="bg-surface border border-border rounded-xl p-3 flex flex-col gap-1.5 min-w-0 [overflow-wrap:anywhere]">
       <p className={clsx('text-sm font-medium', task.status === 'hecha' && 'line-through text-text-dim')}>{task.title}</p>
       {task.description && (
         <p className="text-xs text-text-dim whitespace-pre-wrap">
@@ -326,7 +327,7 @@ function Info() {
           </div>
         </form>
       </Card>
-      <div className="lg:col-span-2 flex flex-col gap-3">
+      <div className="lg:col-span-2 flex flex-col gap-3 min-w-0">
         <div className="flex flex-wrap gap-1.5">
           {(['todas', ...NOTE_CATEGORIES] as const).map((c) => (
             <button
@@ -371,7 +372,7 @@ function Info() {
                 )
               }
             >
-              <p className="text-sm whitespace-pre-wrap">
+              <p className="text-sm whitespace-pre-wrap [overflow-wrap:anywhere]">
                 <Linkify text={n.body} />
               </p>
             </Card>
@@ -433,7 +434,7 @@ function Links() {
           <button className={btnPrimary}>Guardar</button>
         </form>
       </Card>
-      <div className="lg:col-span-2 flex flex-col gap-3">
+      <div className="lg:col-span-2 flex flex-col gap-3 min-w-0">
         <input value={query} onChange={(e) => setQuery(e.target.value)} placeholder="🔎 Buscar…" className={inputCls} />
         {allTags.length > 0 && (
           <div className="flex flex-wrap gap-1.5">
@@ -473,7 +474,7 @@ function TagButton({ active, onClick, children }: { active: boolean; onClick: ()
 
 function LinkCard({ link, canEdit, onTag }: { link: LinkItem; canEdit: boolean; onTag: (t: string) => void }) {
   return (
-    <li className="bg-surface border border-border rounded-xl p-3 flex flex-col gap-1.5">
+    <li className="bg-surface border border-border rounded-xl p-3 flex flex-col gap-1.5 min-w-0 [overflow-wrap:anywhere]">
       <a href={link.url} target="_blank" rel="noreferrer" className="font-medium text-sm hover:text-accent">
         {link.pinned && '📌 '}
         {link.title} ↗

@@ -19,7 +19,7 @@ export function Card({
     <section className={clsx('bg-surface border border-border rounded-2xl p-4 sm:p-5 min-w-0', className)}>
       {(title || action) && (
         <div className="flex items-start justify-between gap-3 mb-3">
-          <div>
+          <div className="min-w-0 [overflow-wrap:anywhere]">
             {title && <h2 className="text-sm font-semibold">{title}</h2>}
             {subtitle && <p className="text-xs text-text-dim mt-0.5">{subtitle}</p>}
           </div>
