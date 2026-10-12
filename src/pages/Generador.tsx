@@ -535,7 +535,8 @@ export default function Generador() {
         onRemove={(slot) =>
           withBusy('Quitando sorteo…', async () => {
             const r = raffles.find((x) => x.id === slot.raffleId);
-            if (r?.status === 'pendiente') {
+            // Solo quien creó el sorteo puede borrarlo; si no, solo se desvincula de la guardia.
+            if (r?.status === 'pendiente' && r.createdBy === me?.id) {
               await deleteDoc(doc(db, 'raffles', r.id));
               await logActivity({ entity: 'sorteo', summary: `Quitó el sorteo de la guardia del ${shortDateLabel(slot.date)}` });
             }

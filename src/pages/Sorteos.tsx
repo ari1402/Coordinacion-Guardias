@@ -117,7 +117,7 @@ export default function Sorteos() {
                     byId={byId}
                     color={color}
                     canDraw={isAdmin || (!r.linkedSlot && r.createdBy === me?.id)}
-                    canDelete={isAdmin || r.createdBy === me?.id}
+                    canDelete={r.createdBy === me?.id}
                     userId={me!.id}
                   />
                 ))}
@@ -141,6 +141,11 @@ export default function Sorteos() {
                     </div>
                     {r.description && <p className="text-sm text-text-dim">{r.description}</p>}
                     <div className="flex flex-wrap items-center gap-1.5">
+                      {r.createdBy === me?.id && (
+                        <button onClick={() => deleteRaffle(r, byId)} className="order-last ml-auto text-xs text-danger underline">
+                          borrar
+                        </button>
+                      )}
                       <span className="text-sm">🏆</span>
                       {winners(r).map((id) => (
                         <ResidentChip key={id} name={byId.get(id)?.shortName ?? '?'} color={color(id)} />
@@ -158,6 +163,26 @@ export default function Sorteos() {
       </div>
     </div>
   );
+}
+
+/** Borra un sorteo propio; el historial guarda qué era y, si ya se había sorteado, el resultado. */
+async function deleteRaffle(raffle: Raffle, byId: Map<string, { shortName: string }>) {
+  const name = (id: string) => byId.get(id)?.shortName ?? id;
+  const drawn = raffle.status === 'sorteado';
+  const msg =
+    `¿Borrar el sorteo "${raffle.title}"?` +
+    (drawn ? `\n\nYa se sorteó (ganó ${winners(raffle).map(name).join(', ')}). Queda registrado en el historial.` : '') +
+    (drawn && raffle.linkedSlot ? '\n\nEra de una guardia del generador: ese lugar vuelve a quedar libre en el borrador.' : '');
+  if (!confirm(msg)) return;
+  await deleteDoc(doc(db, 'raffles', raffle.id));
+  await logActivity({
+    entity: 'sorteo',
+    summary: `Borró el sorteo "${raffle.title}"${drawn ? ' (ya sorteado)' : ''}`,
+    changes: [
+      `Participantes: ${raffle.participantIds.map(name).join(', ')}`,
+      ...(drawn ? [`Resultado: ${(raffle.order ?? []).map(name).join(' → ')}`] : []),
+    ],
+  });
 }
 
 function PendingRaffle({
@@ -227,11 +252,7 @@ function PendingRaffle({
         )}
         {canDelete && !rolling && (
           <button
-            onClick={async () => {
-              if (!confirm('¿Borrar este sorteo?')) return;
-              await deleteDoc(doc(db, 'raffles', raffle.id));
-              await logActivity({ entity: 'sorteo', summary: `Borró el sorteo pendiente "${raffle.title}"` });
-            }}
+            onClick={() => deleteRaffle(raffle, byId)}
             className={btnSecondary}
           >
             Borrar

@@ -203,7 +203,7 @@ service cloud.firestore {
 
     // Sorteos: se sortean una sola vez (pendiente -> sorteado), con un orden
     // que contiene exactamente a los participantes, y el resultado ya no se
-    // puede tocar ni borrar. Los de una guardia del cronograma son de admins.
+    // puede tocar. Los de una guardia del cronograma son de admins.
     match /raffles/{id} {
       allow read: if isResident();
       allow create: if isResident()
@@ -217,8 +217,9 @@ service cloud.firestore {
         && request.resource.data.order.size() == resource.data.participantIds.size()
         && request.resource.data.order.hasAll(resource.data.participantIds)
         && (isAdmin() || (!('linkedSlot' in resource.data) && isSelf(resource.data.createdBy)));
-      allow delete: if resource.data.status == 'pendiente'
-        && (isAdmin() || isSelf(resource.data.createdBy));
+      // Cada una puede borrar solo los sorteos que creó ella (sorteados o no);
+      // queda registrado en el historial con el resultado.
+      allow delete: if isSelf(resource.data.createdBy);
     }
   }
 }
