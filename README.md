@@ -1,144 +1,107 @@
 # Guardias R1
 
-Webapp para coordinar las guardias de la camada de R1: calendario, pedidos de
-fechas, dashboard de equidad (transparente para todo el grupo), feedback
-post-guardia (privado), cambios/swaps y un generador automático de
-cronograma. React + Firebase (Auth, Firestore) para los datos, publicada en
-**GitHub Pages**.
+App para coordinar las guardias de la camada de R1: cronograma, pedidos,
+métricas de equidad transparentes, feedback post-guardia, cambios, sorteos y
+todo lo de la camada (tareas, info AAARBA, links). React + Firebase (Auth +
+Firestore), publicada en **GitHub Pages**:
+https://ari1402.github.io/Coordinacion-Guardias/
 
-Ya está conectada al proyecto Firebase `coordinacion-de-guardias` (con los 7
-R1 y octubre 2026 cargados) y el deploy a GitHub Pages es automático: cada
-push a esta rama (o a `main`) dispara `.github/workflows/deploy-pages.yml`,
-que compila la app y la publica sola. No hace falta instalar nada para
-usarla — solo entrar a la URL de Pages (ver más abajo) con el email/
-contraseña de cada quien.
+## Qué hay
 
-## Cómo está pensada
+| Sección | Para qué |
+|---|---|
+| **Inicio** | Tu próxima guardia, quién está hoy/mañana, feedback pendiente, tu reparto vs. el grupo, próximos 7 días, cumpleaños, tareas, links fijados. |
+| **Calendario** | Mes completo con feriados 🇦🇷, preferiados ⏳, finde XL 🌟, jueves feliz 😊, cumples 🎂 y sorteos 🎲. Exporta tus guardias a Google/Apple Calendar. Las admins editan cada guardia publicada desde el detalle del día. |
+| **Métricas** | Mapa de reparto (azul = le tocó mejor que el promedio, rojo = peor), composición por día de semana, acumulado mes a mes. Filtro por mes o acumulado. |
+| **Pedidos** | 🙅 sin guardia · 🙋 quiero esta guardia · 🌅 necesito el posguardia. Bloqueo / pedido fuerte / preferencia. Días sueltos o rangos (vacaciones). Visibles para todas. |
+| **Mis guardias** | Feedback en 2 preguntas: ¿dormiste? + carga 1–10. |
+| **Cambios** | Intercambios y deudas. Las métricas cuentan a quien realmente hizo la guardia. |
+| **Sorteos** | Aleatorios con el generador criptográfico del navegador; el resultado queda guardado y no se puede volver a sortear ni borrar. |
+| **Camada** | Tareas (pendiente / en curso / hecha, con responsables y fecha), Info (AAARBA, cursos, rotaciones…), Links con etiquetas y buscador. |
+| **Admin** (Bea y Ana) | Reglas de cada mes, feriados oficiales, residentes y cumpleaños, feedback completo, y el **Generador**. |
 
-- **Todos los residentes** ven el calendario, el dashboard grupal (métricas de
-  todos) y los pedidos de todos — esa es la transparencia que pedía el grupo.
-- **Cada residente** solo puede cargar/editar su propio feedback post-guardia
-  (cómo durmió, conformidad, comentario).
-- **Solo Bea Bravo y Ana Alba** (rol `admin` en `residents/{uid}`) ven
-  la sección Admin: el feedback de todos, la edición del calendario/feriados
-  y el generador de cronograma. No hay una "contraseña" separada — el
-  control de acceso real son las Firestore Security Rules (`firestore.rules`),
-  que es más seguro que un password compartido en el cliente.
-- No se carga información sensible de nadie (nombres, emails de trabajo y
-  fechas de guardia solamente), así que el código puede vivir en un repo
-  normal sin problema.
+### Generador
 
-## Stack
+- Arma **3 opciones** (máxima equidad / respeto de pedidos / descanso) con el
+  mismo criterio que valida las ediciones manuales.
+- Reglas duras: bloqueos, cumpleaños y víspera, distancia mínima entre guardias,
+  nunca dos guardias el mismo día. Blandas: pedidos fuertes y preferencias,
+  equidad **acumulada** (totales, sábados+preferiados, feriados, findes XL,
+  jueves felices, vie/dom), no repetir día de semana, máx. un sábado/preferiado,
+  sábado común → con jueves.
+- Editor por guardia: cambiar a mano (queda fijada 🔒 y regenerar no la toca),
+  marcar una guardia para **sortear** entre quienes elijas 🎲, guardar borrador y publicar.
+- **Importar desde texto**: pegá o subí un .txt con una guardia por línea
+  (`1/11 Funes`, `Sábado 7: Alba`, `3/11 sin R1`…) y se carga en el editor.
+- Reglas por mes (R1 por día de semana, distancias, tope, acuerdos internos):
+  si un mes no tiene reglas, **hereda** las del último mes configurado.
 
-- Vite + React 19 + TypeScript + Tailwind v4, con `HashRouter` (rutas tipo
-  `/#/calendario`) para que GitHub Pages no necesite configurar rewrites de SPA.
-- Firebase: Auth (email/password) + Firestore para los datos.
-- GitHub Actions + GitHub Pages para publicarla.
-- Recharts para los gráficos (paleta accesible, ver `src/lib/palette.ts`).
+## Puesta en marcha (lo que falta hacer una vez)
 
-La config de Firebase (`src/firebase.ts`) no es secreta — identifica el
-proyecto, pero termina igual dentro del JS público sin importar de dónde
-salga — así que va directo en el código en vez de en variables de entorno;
-eso es lo que permite que GitHub Actions compile la app sin secretos.
+### 1. Guardar la clave de Firebase en GitHub (obligatorio)
 
-## Publicar en GitHub Pages (un solo paso manual)
+Con ella GitHub publica las reglas de seguridad y la app en cada cambio.
 
-El workflow ya está en el repo. Falta un clic único para activarlo:
+1. Firebase Console → ⚙️ Configuración del proyecto → **Cuentas de servicio** →
+   *Generar nueva clave privada* (o usá el JSON que ya descargaste).
+2. En GitHub: repo → **Settings → Secrets and variables → Actions → New
+   repository secret**. Nombre: `FIREBASE_SERVICE_ACCOUNT`. Valor: todo el
+   contenido del archivo JSON.
+3. **Actions → Deploy a GitHub Pages → Re-run all jobs** (o cualquier push).
 
-**Settings → Pages → Source: "GitHub Actions"** (en vez de "Deploy from a
-branch"). Después de eso, cada push a esta rama (o a `main`) la vuelve a
-publicar sola en `https://<usuario-u-org>.github.io/<repo>/`.
+Mientras no esté el secret, la publicación falla a propósito y queda online la
+versión anterior.
 
-## Si en algún momento hace falta reinstalar Firebase desde cero
+### 2. Mail de feedback a las 8 AM (opcional)
 
-(Ya está hecho para este proyecto — esto es por si se migra a otro.)
+`.github/workflows/feedback-mail.yml` corre todos los días a las 8:00 (hora
+Argentina): a quien hizo guardia ayer y no cargó feedback le manda un mail con
+botones "Dormí / No dormí" que abren la app con la respuesta precargada.
+Se manda desde una cuenta de Gmail:
 
-1. Creá un proyecto en [Firebase Console](https://console.firebase.google.com/).
-2. Activá **Authentication → Email/Password** y **Firestore Database** (modo
-   producción; las reglas ya están en `firestore.rules`).
-3. Pegá la config de **Configuración del proyecto → Tus apps → Web app** en
-   `src/firebase.ts`.
-4. `cp .firebaserc.example .firebaserc` y poné el ID del proyecto nuevo.
-5. `npm install`
+1. En esa cuenta de Google: activar verificación en 2 pasos y crear una
+   **contraseña de aplicación** (https://myaccount.google.com/apppasswords).
+2. Agregar dos secrets más: `SMTP_USER` (el Gmail) y `SMTP_PASS` (la
+   contraseña de aplicación).
+3. Para probar: Actions → *Mail de feedback post-guardia* → Run workflow (con
+   "solo mostrar" tildado no manda nada, solo lista a quién le mandaría).
 
-### Cargar los datos iniciales (residentes + calendario)
+### 3. Feriados
 
-1. Editá `scripts/residents.seed.json` con los emails reales de cada R1 y
-   contraseñas provisorias (cada quien las cambia con "olvidé mi contraseña"
-   en el login).
-2. Descargá una clave de cuenta de servicio: Firebase Console →
-   Configuración del proyecto → **Cuentas de servicio** → Generar nueva clave
-   privada → guardala como `scripts/serviceAccountKey.json` (ya está en
-   `.gitignore`, nunca se sube a git). Borrala del disco apenas termines —
-   es la llave maestra del proyecto.
-3. `npm run seed` — crea los usuarios de Auth y carga `residents` +
-   calendario + guardias.
-4. `npm run deploy:rules` — publica `firestore.rules` (usa el mismo archivo
-   del paso 2; esquiva el permiso de Service Usage que
-   `firebase deploy --only firestore` necesita y que el service account del
-   Admin SDK no tiene por default).
+Admin → Reglas del mes → **Importar** feriados oficiales del año (Ministerio del
+Interior vía ArgentinaDatos + Día de la Sanidad). Revisá la tabla del mes y
+destildá lo que no aplique al hospital.
 
-### Desarrollo local
+## Desarrollo
 
 ```bash
-npm run dev     # local, con hot reload (usa el mismo Firebase de producción)
-npm run build    # typecheck + build de producción a dist/
+npm install
+npm run dev      # local, usa el mismo Firebase de producción
+npm test         # tests del generador, fechas e importador de texto
+npm run build
 ```
 
-## Estructura del código
+Scripts de mantenimiento (usan `FIREBASE_SERVICE_ACCOUNT` o
+`scripts/serviceAccountKey.json`, que está en `.gitignore`):
+
+- `npm run deploy:rules` — publica `firestore.rules`.
+- `npm run migrate` — migración v2 (nombres, cumpleaños, esquema de marzo 2027). Corre una sola vez.
+- `npm run seed` — carga inicial desde cero (residentes + octubre 2026).
+
+## Código
 
 ```
-src/
-  types.ts              modelo de datos (Resident, Shift, GuardiaRequest, ShiftFeedback, Swap, ...)
-  lib/
-    dates.ts            feriados, preferiados, finde XL vs jueves feliz, sábado común vs finde largo
-    equity.ts            contadores de equidad por residente (totales, sáb+pref, findes libres, distancia)
-    generator.ts          algoritmo del generador de cronograma
-    palette.ts            colores por residente / estado (accesibles, validados)
-  hooks/                 suscripciones en tiempo real a Firestore + useAuth
-  pages/                 una página por módulo (Calendario, Pedidos, Feedback, Admin, Generador, ...)
-scripts/
-  seed.mjs               carga inicial (Firebase Admin SDK)
-  residents.seed.json     datos de las 7 R1 (editar antes de correr el seed)
-  october-2026.seed.json  calendario + guardias de octubre 2026, extraído del Excel
-firestore.rules          reglas de seguridad (quién puede leer/escribir qué)
+src/lib/
+  dates.ts       meses sintetizados, feriados → preferiado / finde XL / jueves feliz, reglas heredables
+  generator.ts   función de costo única + búsqueda (golosa + recocido simulado), 3 perfiles
+  equity.ts      contadores de equidad por persona y período
+  importText.ts  intérprete del cronograma en texto
+  raffles.ts     sorteos (aleatoriedad criptográfica)
+  schedule.ts    borradores y publicación del cronograma
+src/pages/       una página por sección
+firestore.rules  quién puede leer/escribir qué (residentes dados de alta, admins, autor del feedback…)
+scripts/         seed, migración, reglas, mail diario
 ```
 
-## Reglas de negocio implementadas
-
-Ver la conversación original para el detalle completo; en código:
-
-- **Preferiado** = día no feriado inmediatamente anterior al inicio de un
-  bloque de feriados consecutivos (`src/lib/dates.ts`).
-- **Finde XL** = jueves cuyo lunes siguiente es feriado; si no, es **jueves
-  feliz**.
-- **Sábado común vs. finde largo** = según si el viernes, el propio sábado,
-  el domingo o el lunes siguiente caen feriado.
-- **Sábado + preferiado** se suman en un único contador de equidad
-  (`sabadosYPreferiados`), tal como se pidió.
-- **Findes libres**: se calculan ambas definiciones (sin guardia vie/sáb/dom,
-  y la versión estricta que además excluye posguardia del jueves).
-- **Distancia entre guardias**: el generador trata <= 3 días como regla dura
-  (solo se permite si no queda otra opción) y prioriza >= 5 días como ideal.
-- **Equidad histórica**: todos los contadores de los dashboards se calculan
-  sobre el acumulado de todo lo cargado, no mes a mes — así un mes puede
-  compensar al anterior, como se buscaba con el ejemplo de octubre→noviembre.
-- **Quién hizo la guardia de verdad**: `Shift.actualResidentId` (puede
-  diferir de `assignedResidentId` por un swap) es lo que alimenta todos los
-  contadores — igual que pedía la conversación original ("quien realmente
-  hizo la guardia").
-
-## Lo que falta / próximos pasos (a propósito fuera de este alcance)
-
-- El generador hoy devuelve **una sola propuesta** (la de menor score tras
-  varios intentos aleatorios), no las 3 opciones (equidad / pedidos /
-  descanso) que se charlaron. Se puede lograr llamando
-  `generateSchedule()` tres veces con distintos pesos — queda documentado
-  acá para no sobre-construir en esta primera versión.
-- No hay una pantalla para que un admin cree residentes nuevos desde la UI
-  (se hace con `npm run seed` o a mano en Firebase Console + un doc en
-  `residents`) — crear usuarios de Auth desde el cliente requeriría una
-  Cloud Function, y para 7 personas fijas no vale la pena todavía.
-- El bundle de producción pesa ~1.2 MB (sobre todo Firebase + Recharts); si
-  en algún momento se siente lento, el primer paso sería code-splitting por
-  ruta con `React.lazy`.
+La config de Firebase en `src/firebase.ts` no es secreta (viaja igual en el
+JS público); la seguridad la dan las reglas + Auth.

@@ -1,22 +1,23 @@
 #!/usr/bin/env node
 // Despliega firestore.rules directamente contra la Firebase Rules API,
 // sin pasar por `firebase deploy` (que necesita permisos de Service Usage
-// que el service account del Admin SDK no tiene por default). Usa la misma
-// scripts/serviceAccountKey.json que el seed.
-//
-// Uso: node scripts/deploy-rules.mjs
+// que el service account del Admin SDK no tiene por default).
+// Credenciales: ver scripts/credentials.mjs. Lo corre GitHub Actions antes de
+// cada publicación (.github/workflows/deploy-pages.yml).
 
 import { readFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { GoogleAuth } from 'google-auth-library';
+import { loadServiceAccount } from './credentials.mjs';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
-const projectId = 'coordinacion-de-guardias';
+const credentials = loadServiceAccount();
+const projectId = credentials.project_id;
 const rulesSource = readFileSync(join(__dirname, '..', 'firestore.rules'), 'utf-8');
 
 const auth = new GoogleAuth({
-  keyFile: join(__dirname, 'serviceAccountKey.json'),
+  credentials,
   scopes: ['https://www.googleapis.com/auth/firebase', 'https://www.googleapis.com/auth/cloud-platform'],
 });
 const client = await auth.getClient();

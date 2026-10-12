@@ -7,12 +7,17 @@ service cloud.firestore {
       return request.auth != null;
     }
 
-    function residentData(uid) {
-      return get(/databases/$(database)/documents/residents/$(uid)).data;
+    function residentPath(uid) {
+      return /databases/$(database)/documents/residents/$(uid);
+    }
+
+    // Tener cuenta de Auth no alcanza: hay que estar dado de alta en residents.
+    function isResident() {
+      return isSignedIn() && exists(residentPath(request.auth.uid));
     }
 
     function isAdmin() {
-      return isSignedIn() && residentData(request.auth.uid).role == 'admin';
+      return isResident() && get(residentPath(request.auth.uid)).data.role == 'admin';
     }
 
     function isSelf(uid) {
@@ -23,72 +28,130 @@ service cloud.firestore {
       return request.resource.data.diff(resource.data).affectedKeys().hasOnly(fields);
     }
 
-    // Perfiles de residentes. El rol vive acá, no en custom claims: es la
-    // única fuente de verdad tanto para la UI (mostrar/ocultar Admin) como
-    // para estas reglas. Por eso nadie puede auto-promoverse a admin.
+    function createdByMe() {
+      return request.resource.data.createdBy == request.auth.uid;
+    }
+
+    function keepsCreator() {
+      return request.resource.data.createdBy == resource.data.createdBy;
+    }
+
+    // Un residente solo puede cambiar quién hace una guardia si en el mismo
+    // batch queda confirmado un cambio (swap) de esa guardia del que es parte.
+    function backedBySwap(shiftId) {
+      let swap = getAfter(/databases/$(database)/documents/swaps/$(request.resource.data.swapId)).data;
+      return swap.shiftId == shiftId
+        && swap.status == 'confirmado'
+        && request.resource.data.actualResidentId == swap.toResidentId
+        && (isSelf(swap.toResidentId) || isSelf(swap.fromResidentId));
+    }
+
+    // El rol vive acá: nadie puede auto-promoverse a admin.
     match /residents/{uid} {
       allow read: if isSignedIn();
-      allow create: if isAdmin();
-      allow update: if isAdmin() || (isSelf(uid) && onlyChanged(['name', 'shortName', 'email']));
-      allow delete: if isAdmin();
-    }
-
-    // Config de R1 requeridos por día de semana, por mes.
-    match /monthConfigs/{id} {
-      allow read: if isSignedIn();
-      allow write: if isAdmin();
-    }
-
-    // Feriados / overrides puntuales de cobertura por día.
-    match /calendarDays/{id} {
-      allow read: if isSignedIn();
-      allow write: if isAdmin();
-    }
-
-    // El cronograma publicado. Lo escribe el generador (admin) pero también
-    // se actualiza cuando se confirma un cambio de guardia (ver /swaps) —
-    // por eso cualquier residente puede tocar actualResidentId/swapId.
-    match /shifts/{id} {
-      allow read: if isSignedIn();
       allow create, delete: if isAdmin();
-      allow update: if isAdmin() || onlyChanged(['actualResidentId', 'swapId', 'updatedAt']);
+      allow update: if isAdmin() || (isSelf(uid) && onlyChanged(['name', 'shortName', 'email', 'birthday']));
     }
 
-    // Pedidos: visibles para todo el grupo (transparencia). Cada residente
-    // gestiona los suyos mientras están pendientes; resolverlos es de admin.
+    match /monthConfigs/{id} {
+      allow read: if isResident();
+      allow write: if isAdmin();
+    }
+
+    match /calendarDays/{id} {
+      allow read: if isResident();
+      allow write: if isAdmin();
+    }
+
+    match /scheduleDrafts/{id} {
+      allow read, write: if isAdmin();
+    }
+
+    match /shifts/{id} {
+      allow read: if isResident();
+      allow create, delete: if isAdmin();
+      allow update: if isAdmin()
+        || (isResident() && onlyChanged(['actualResidentId', 'swapId', 'updatedAt']) && backedBySwap(id))
+        || (isSelf(resource.data.actualResidentId) && onlyChanged(['slept', 'updatedAt']));
+    }
+
+    // Pedidos: los ve todo el grupo. Cada una maneja los suyos mientras están pendientes.
     match /requests/{id} {
-      allow read: if isSignedIn();
-      allow create: if isSignedIn()
+      allow read: if isResident();
+      allow create: if isResident()
         && request.resource.data.residentId == request.auth.uid
         && request.resource.data.status == 'pendiente';
       allow update: if isAdmin() || (
         isSelf(resource.data.residentId)
+        && request.resource.data.residentId == resource.data.residentId
         && resource.data.status == 'pendiente'
         && request.resource.data.status == 'pendiente'
       );
       allow delete: if isAdmin() || (isSelf(resource.data.residentId) && resource.data.status == 'pendiente');
     }
 
-    // Feedback post-guardia: colección sensible. Solo el autor y los admins
-    // (Bea / Ana) pueden leerla — toda query sin filtrar por
-    // residentId del propio usuario falla para un no-admin, por diseño.
+    // Feedback post-guardia (doc id = id de la guardia): solo autor + admins.
+    // Toda query de una no-admin tiene que filtrar por su residentId.
     match /feedback/{id} {
-      allow read: if isAdmin() || isSelf(resource.data.residentId);
-      allow create: if isSignedIn() && request.resource.data.residentId == request.auth.uid;
-      allow update, delete: if isAdmin();
+      allow read: if isAdmin() || (isSignedIn() && resource.data.residentId == request.auth.uid);
+      allow create: if isResident() && request.resource.data.residentId == request.auth.uid;
+      allow update: if isAdmin() || (
+        isSelf(resource.data.residentId) && request.resource.data.residentId == request.auth.uid
+      );
+      allow delete: if isAdmin();
     }
 
-    // Cambios de guardia: cualquiera puede verlos y proponerlos; confirmarlos
-    // o rechazarlos es cosa de quien recibe la guardia, de quien la tenía, o
-    // de un admin. La deuda se puede saldar entre las mismas partes.
     match /swaps/{id} {
-      allow read: if isSignedIn();
-      allow create: if isSignedIn() && request.resource.data.createdBy == request.auth.uid;
+      allow read: if isResident();
+      allow create: if isResident() && createdByMe() && request.resource.data.status == 'solicitado';
       allow update: if isAdmin() || (
         (isSelf(resource.data.toResidentId) || isSelf(resource.data.fromResidentId))
         && onlyChanged(['status', 'debtSettled'])
       );
       allow delete: if isAdmin();
+    }
+
+    match /links/{id} {
+      allow read: if isResident();
+      allow create: if isResident() && createdByMe();
+      allow update: if (isAdmin() || isSelf(resource.data.createdBy)) && keepsCreator()
+        || (isResident() && onlyChanged(['pinned']));
+      allow delete: if isAdmin() || isSelf(resource.data.createdBy);
+    }
+
+    // Tareas de la camada: colaborativas (cualquiera puede moverlas de estado).
+    match /tasks/{id} {
+      allow read: if isResident();
+      allow create: if isResident() && createdByMe();
+      allow update: if isResident() && keepsCreator();
+      allow delete: if isAdmin() || isSelf(resource.data.createdBy);
+    }
+
+    match /notes/{id} {
+      allow read: if isResident();
+      allow create: if isResident() && createdByMe();
+      allow update: if (isAdmin() || isSelf(resource.data.createdBy)) && keepsCreator();
+      allow delete: if isAdmin() || isSelf(resource.data.createdBy);
+    }
+
+    // Sorteos: se sortean una sola vez (pendiente -> sorteado), con un orden
+    // que contiene exactamente a los participantes, y el resultado ya no se
+    // puede tocar ni borrar. Los de una guardia del cronograma son de admins.
+    match /raffles/{id} {
+      allow read: if isResident();
+      allow create: if isResident()
+        && createdByMe()
+        && request.resource.data.status == 'pendiente'
+        && (!('linkedSlot' in request.resource.data) || isAdmin());
+      allow update: if resource.data.status == 'pendiente'
+        && request.resource.data.status == 'sorteado'
+        && onlyChanged(['status', 'order', 'drawnBy', 'drawnAt'])
+        && request.resource.data.drawnBy == request.auth.uid
+        && request.resource.data.order.size() == resource.data.participantIds.size()
+        && request.resource.data.order.hasAll(resource.data.participantIds)
+        && (isAdmin() || (!('linkedSlot' in resource.data) && isSelf(resource.data.createdBy)));
+      allow delete: if resource.data.status == 'pendiente'
+        && (isAdmin() || isSelf(resource.data.createdBy));
     }
   }
 }

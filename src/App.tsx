@@ -1,23 +1,21 @@
 import { Navigate, Route, Routes } from 'react-router-dom';
 import Layout from './components/Layout';
 import { useAuthContext } from './context/AuthContext';
-import Login from './pages/Login';
-import MiDashboard from './pages/MiDashboard';
-import DashboardGrupal from './pages/DashboardGrupal';
-import Calendario from './pages/Calendario';
-import Pedidos from './pages/Pedidos';
-import Feedback from './pages/Feedback';
-import Cambios from './pages/Cambios';
 import Admin from './pages/Admin';
-import Generador from './pages/Generador';
+import Calendario from './pages/Calendario';
+import Camada from './pages/Camada';
 import CambiarPassword from './pages/CambiarPassword';
+import Cambios from './pages/Cambios';
+import Feedback from './pages/Feedback';
+import Generador from './pages/Generador';
+import Inicio from './pages/Inicio';
+import Login from './pages/Login';
+import Metricas from './pages/Metricas';
+import Pedidos from './pages/Pedidos';
+import Sorteos from './pages/Sorteos';
 
 function FullScreenLoader() {
-  return (
-    <div className="min-h-screen flex items-center justify-center text-text-dim text-sm">
-      Cargando…
-    </div>
-  );
+  return <div className="min-h-screen flex items-center justify-center text-text-dim text-sm">Cargando…</div>;
 }
 
 function PendingSetup() {
@@ -26,8 +24,7 @@ function PendingSetup() {
       <div>
         <h1 className="text-lg font-semibold mb-2">Tu cuenta todavía no tiene perfil</h1>
         <p className="text-text-dim text-sm max-w-sm">
-          Pedile a Bea o a Ana que te creen el documento en la colección{' '}
-          <code className="bg-surface-2 px-1 rounded">residents</code> con tu uid.
+          Pedile a Bea o a Ana que te den de alta en Admin → Residentes.
         </p>
       </div>
     </div>
@@ -44,15 +41,18 @@ export default function App() {
   return (
     <Routes>
       <Route element={<Layout />}>
-        <Route path="/" element={<MiDashboard />} />
-        <Route path="/grupo" element={<DashboardGrupal />} />
+        <Route path="/" element={<Inicio />} />
         <Route path="/calendario" element={<Calendario />} />
+        <Route path="/metricas" element={<Metricas />} />
         <Route path="/pedidos" element={<Pedidos />} />
         <Route path="/feedback" element={<Feedback />} />
         <Route path="/cambios" element={<Cambios />} />
+        <Route path="/sorteos" element={<Sorteos />} />
+        <Route path="/camada" element={<Camada />} />
         <Route path="/cuenta" element={<CambiarPassword />} />
         {isAdmin && <Route path="/admin" element={<Admin />} />}
         {isAdmin && <Route path="/admin/generador" element={<Generador />} />}
+        <Route path="/grupo" element={<Navigate to="/metricas" replace />} />
         <Route path="*" element={<Navigate to="/" replace />} />
       </Route>
     </Routes>

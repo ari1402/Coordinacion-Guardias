@@ -26,6 +26,19 @@ jobs:
           node-version: 22
           cache: npm
       - run: npm ci
+      - run: npm test
+      # La app nueva necesita las reglas de Firestore que vienen con ella:
+      # se publican antes, con la cuenta de servicio guardada como secret.
+      - name: Reglas de Firestore y migraciones
+        env:
+          FIREBASE_SERVICE_ACCOUNT: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
+        run: |
+          if [ -z "$FIREBASE_SERVICE_ACCOUNT" ]; then
+            echo "::error::Falta el secret FIREBASE_SERVICE_ACCOUNT (Settings → Secrets and variables → Actions). Ver README."
+            exit 1
+          fi
+          node scripts/deploy-rules.mjs
+          node scripts/migrate-v2.mjs
       - run: npm run build
       - uses: actions/configure-pages@v5
       - uses: actions/upload-pages-artifact@v3

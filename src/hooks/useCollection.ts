@@ -13,17 +13,18 @@ export interface CollectionState<T> {
   error: string | null;
 }
 
-/** Suscripción en tiempo real a una colección de Firestore, tipada. */
+/** Suscripción en tiempo real a una colección de Firestore, tipada. path vacío = deshabilitada. */
 export function useCollection<T>(
   path: string,
   constraints: QueryConstraint[] = [],
   deps: unknown[] = [],
 ): CollectionState<T> {
   const [data, setData] = useState<T[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(!!path);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
+    if (!path) return;
     setLoading(true);
     const q = query(collection(db, path), ...constraints);
     const unsub = onSnapshot(

@@ -8,8 +8,10 @@
     "build": "tsc -b && vite build",
     "lint": "oxlint",
     "preview": "vite preview",
+    "test": "vitest run",
     "seed": "node scripts/seed.mjs",
-    "deploy:rules": "node scripts/deploy-rules.mjs"
+    "deploy:rules": "node scripts/deploy-rules.mjs",
+    "migrate": "node scripts/migrate-v2.mjs"
   },
   "dependencies": {
     "clsx": "^2.1.1",
@@ -27,10 +29,12 @@
     "@vitejs/plugin-react": "^6.1.1",
     "firebase-admin": "^14.5.0",
     "google-auth-library": "^11.2.0",
+    "nodemailer": "^10.1.0",
     "oxlint": "^1.81.0",
     "postcss": "^8.5.29",
     "tailwindcss": "^4.3.3",
     "typescript": "~6.0.2",
-    "vite": "^8.3.0"
+    "vite": "^8.3.0",
+    "vitest": "^5.0.4"
   }
 }

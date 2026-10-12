@@ -1,85 +1,122 @@
-import type { EquityCounters, ResolvedDay, Shift } from '../types';
-import { addDaysISO, gapsBetween, hasTag } from './dates';
+import type { CalendarDay, EquityCounters, MonthConfig, ResolvedDay, Shift } from '../types';
+import { addDaysISO, gapsBetween, hasTag, monthKey, monthsBetween, resolveMonths } from './dates';
 
 /**
- * Calcula los contadores de equidad de un residente para un conjunto de
- * guardias + calendario ya resuelto. Usa siempre `actualResidentId` (quien
- * realmente hizo la guardia), no la asignación original — así un swap
- * posterior se refleja en el histórico (ver types.ts, sección Shift).
+ * Contadores de equidad de un residente. Usa siempre `actualResidentId`
+ * (quien realmente hizo la guardia), así un cambio se refleja en el
+ * histórico. `days` define el período: solo se cuentan fines de semana
+ * libres de esos días, y deben incluir los días de todas las guardias.
  */
 export function computeEquityCounters(
   residentId: string,
   shifts: Shift[],
-  resolvedDays: ResolvedDay[],
+  days: ResolvedDay[],
 ): EquityCounters {
-  const dayById = new Map(resolvedDays.map((d) => [d.id, d]));
+  const dayById = new Map(days.map((d) => [d.id, d]));
   const mine = shifts
     .filter((s) => s.actualResidentId === residentId && s.status !== 'cancelada')
     .sort((a, b) => a.date.localeCompare(b.date));
-
   const occupied = new Set(mine.map((s) => s.date));
-  const dayOf = (s: Shift) => dayById.get(s.date);
 
-  let sabados = 0;
-  let preferiados = 0;
-  let feriados = 0;
-  let findesXL = 0;
-  let juevesFelices = 0;
-  let viernes = 0;
-  let domingos = 0;
+  const c: EquityCounters = {
+    residentId,
+    totalGuardias: mine.length,
+    lunAMie: 0,
+    jueves: 0,
+    viernes: 0,
+    sabados: 0,
+    domingos: 0,
+    preferiados: 0,
+    sabadosYPreferiados: 0,
+    feriados: 0,
+    findesXL: 0,
+    juevesFelices: 0,
+    findeTotal: 0,
+    findesLibresA: 0,
+    findesLibresB: 0,
+    distanciaMinima: null,
+    distanciaPromedio: null,
+    sinDormir: 0,
+    conReporteSueno: 0,
+  };
 
   for (const s of mine) {
-    const day = dayOf(s);
+    if (s.slept === false) c.sinDormir++;
+    if (s.slept !== undefined) c.conReporteSueno++;
+    const day = dayById.get(s.date);
     if (!day) continue;
-    if (day.weekday === 5) sabados++;
-    if (hasTag(day, 'preferiado')) preferiados++;
-    if (day.isHoliday) feriados++;
-    if (hasTag(day, 'finde_xl')) findesXL++;
-    if (hasTag(day, 'jueves_feliz')) juevesFelices++;
-    if (day.weekday === 4) viernes++;
-    if (day.weekday === 6) domingos++;
+    if (day.weekday <= 2) c.lunAMie++;
+    if (day.weekday === 3) c.jueves++;
+    if (day.weekday === 4) c.viernes++;
+    if (day.weekday === 5) c.sabados++;
+    if (day.weekday === 6) c.domingos++;
+    if (day.weekday >= 4) c.findeTotal++;
+    if (hasTag(day, 'preferiado')) c.preferiados++;
+    if (day.isHoliday) c.feriados++;
+    if (hasTag(day, 'finde_xl')) c.findesXL++;
+    if (hasTag(day, 'jueves_feliz')) c.juevesFelices++;
   }
+  c.sabadosYPreferiados = c.sabados + c.preferiados;
 
-  let findesLibresA = 0;
-  let findesLibresB = 0;
-  for (const day of resolvedDays) {
-    if (day.weekday !== 5) continue; // solo evaluamos una vez por finde, en el sábado
-    const friday = addDaysISO(day.date, -1);
-    const sunday = addDaysISO(day.date, 1);
-    const thursday = addDaysISO(day.date, -2);
-    const freeA = !occupied.has(friday) && !occupied.has(day.date) && !occupied.has(sunday);
-    if (freeA) {
-      findesLibresA++;
-      if (!occupied.has(thursday)) findesLibresB++;
+  for (const day of days) {
+    if (day.weekday !== 5) continue; // un finde se evalúa una vez, en su sábado
+    const free = [-1, 0, 1].every((d) => !occupied.has(addDaysISO(day.date, d)));
+    if (free) {
+      c.findesLibresA++;
+      if (!occupied.has(addDaysISO(day.date, -2))) c.findesLibresB++;
     }
   }
 
   const gaps = gapsBetween(mine.map((s) => s.date));
-
-  return {
-    residentId,
-    totalGuardias: mine.length,
-    sabados,
-    preferiados,
-    sabadosYPreferiados: sabados + preferiados,
-    feriados,
-    findesXL,
-    juevesFelices,
-    viernes,
-    domingos,
-    findesLibresA,
-    findesLibresB,
-    distanciaMinima: gaps.length ? Math.min(...gaps) : null,
-    distanciaPromedio: gaps.length ? gaps.reduce((a, b) => a + b, 0) / gaps.length : null,
-  };
+  if (gaps.length) {
+    c.distanciaMinima = Math.min(...gaps);
+    c.distanciaPromedio = gaps.reduce((a, b) => a + b, 0) / gaps.length;
+  }
+  return c;
 }
 
 export function computeAllEquityCounters(
   residentIds: string[],
   shifts: Shift[],
-  resolvedDays: ResolvedDay[],
+  days: ResolvedDay[],
 ): Record<string, EquityCounters> {
-  return Object.fromEntries(
-    residentIds.map((id) => [id, computeEquityCounters(id, shifts, resolvedDays)]),
-  );
+  return Object.fromEntries(residentIds.map((id) => [id, computeEquityCounters(id, shifts, days)]));
+}
+
+/** Meses (ordenados) que tienen al menos una guardia cargada. */
+export function monthsWithShifts(shifts: Shift[]): string[] {
+  return [...new Set(shifts.map((s) => monthKey(s.date)))].sort();
+}
+
+/**
+ * Días resueltos de todos los meses con guardias (o de los meses pedidos),
+ * para alimentar computeEquityCounters sobre el acumulado.
+ */
+export function resolvePeriod(
+  shifts: Shift[],
+  storedDays: CalendarDay[],
+  configs: MonthConfig[],
+  months?: string[],
+): ResolvedDay[] {
+  const keys = months ?? monthsWithShifts(shifts);
+  if (keys.length === 0) return [];
+  const all = months ? keys : monthsBetween(keys[0], keys[keys.length - 1]);
+  return resolveMonths(all, storedDays, configs);
+}
+
+export interface Comparison {
+  value: number;
+  mean: number;
+  delta: number;
+}
+
+export function compareToGroup(
+  counters: Record<string, EquityCounters>,
+  residentId: string,
+  key: keyof EquityCounters,
+): Comparison {
+  const values = Object.values(counters).map((c) => Number(c[key] ?? 0));
+  const mean = values.length ? values.reduce((a, b) => a + b, 0) / values.length : 0;
+  const value = Number(counters[residentId]?.[key] ?? 0);
+  return { value, mean, delta: value - mean };
 }

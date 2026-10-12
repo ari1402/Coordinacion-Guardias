@@ -3,9 +3,14 @@ import { useMemo } from 'react';
 import { useCollection } from './useCollection';
 import type {
   CalendarDay,
+  CamadaTask,
   GuardiaRequest,
+  InfoNote,
+  LinkItem,
   MonthConfig,
+  Raffle,
   Resident,
+  ScheduleDraft,
   Shift,
   ShiftFeedback,
   Swap,
@@ -16,34 +21,16 @@ export function useResidents() {
   return { residents: data, loading, error };
 }
 
-export function useCalendarMonth(monthKey: string) {
-  const days = useCollection<CalendarDay>('calendarDays', [
-    where('id', '>=', `${monthKey}-00`),
-    where('id', '<=', `${monthKey}-99`),
-  ], [monthKey]);
-  const configs = useCollection<MonthConfig>('monthConfigs', []);
-  return {
-    days: days.data,
-    monthConfigs: configs.data,
-    loading: days.loading || configs.loading,
-    error: days.error ?? configs.error,
-  };
+export function useResidentsById(residents: Resident[]) {
+  return useMemo(() => new Map(residents.map((r) => [r.id, r])), [residents]);
 }
 
-export function useShiftsMonth(monthKey: string) {
-  const { data, loading, error } = useCollection<Shift>(
-    'shifts',
-    [where('date', '>=', `${monthKey}-00`), where('date', '<=', `${monthKey}-99`)],
-    [monthKey],
-  );
-  return { shifts: data, loading, error };
-}
-
-export function useAllCalendarDays() {
-  const days = useCollection<CalendarDay>('calendarDays', [orderBy('id')]);
+/** Overrides de días + configs de mes. Son pocas docs: se traen enteras. */
+export function useCalendarData() {
+  const days = useCollection<CalendarDay>('calendarDays', []);
   const configs = useCollection<MonthConfig>('monthConfigs', []);
   return {
-    days: days.data,
+    storedDays: days.data,
     monthConfigs: configs.data,
     loading: days.loading || configs.loading,
     error: days.error ?? configs.error,
@@ -56,25 +43,20 @@ export function useAllShifts() {
 }
 
 export function useRequests() {
-  const { data, loading, error } = useCollection<GuardiaRequest>('requests', [
-    orderBy('createdAt', 'desc'),
-  ]);
+  const { data, loading, error } = useCollection<GuardiaRequest>('requests', [orderBy('createdAt', 'desc')]);
   return { requests: data, loading, error };
 }
 
 /**
- * Feedback: para residentes hay que filtrar por `residentId` en la propia
- * query (las Firestore rules exigen que el filtro esté en la consulta, no
- * solo verificado doc por doc) — los admins pueden omitirlo y ven todo.
+ * Para residentes hay que filtrar por residentId en la query misma (las
+ * rules exigen que el filtro esté en la consulta); los admins lo omiten.
  */
 export function useFeedback(residentId?: string) {
-  const constraints = residentId
-    ? [where('residentId', '==', residentId), orderBy('createdAt', 'desc')]
-    : [orderBy('createdAt', 'desc')];
-  const { data, loading, error } = useCollection<ShiftFeedback>('feedback', constraints, [
-    residentId,
-  ]);
-  return { feedback: data, loading, error };
+  // Filtrado se ordena en el cliente: así no hace falta un índice compuesto.
+  const constraints = residentId ? [where('residentId', '==', residentId)] : [orderBy('createdAt', 'desc')];
+  const { data, loading, error } = useCollection<ShiftFeedback>('feedback', constraints, [residentId]);
+  const sorted = useMemo(() => [...data].sort((a, b) => b.createdAt.localeCompare(a.createdAt)), [data]);
+  return { feedback: sorted, loading, error };
 }
 
 export function useSwaps() {
@@ -82,6 +64,27 @@ export function useSwaps() {
   return { swaps: data, loading, error };
 }
 
-export function useResidentsById(residents: Resident[]) {
-  return useMemo(() => new Map(residents.map((r) => [r.id, r])), [residents]);
+export function useLinks() {
+  const { data, loading, error } = useCollection<LinkItem>('links', [orderBy('createdAt', 'desc')]);
+  return { links: data, loading, error };
+}
+
+export function useTasks() {
+  const { data, loading, error } = useCollection<CamadaTask>('tasks', [orderBy('createdAt', 'desc')]);
+  return { tasks: data, loading, error };
+}
+
+export function useNotes() {
+  const { data, loading, error } = useCollection<InfoNote>('notes', [orderBy('createdAt', 'desc')]);
+  return { notes: data, loading, error };
+}
+
+export function useRaffles() {
+  const { data, loading, error } = useCollection<Raffle>('raffles', [orderBy('createdAt', 'desc')]);
+  return { raffles: data, loading, error };
+}
+
+export function useDrafts(enabled: boolean) {
+  const { data, loading, error } = useCollection<ScheduleDraft>(enabled ? 'scheduleDrafts' : '', []);
+  return { drafts: enabled ? data : [], loading: enabled && loading, error };
 }

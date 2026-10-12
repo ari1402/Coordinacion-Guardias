@@ -2,7 +2,6 @@ import {
   addDoc,
   collection,
   doc,
-  serverTimestamp,
   updateDoc,
   writeBatch,
 } from 'firebase/firestore';
@@ -12,6 +11,7 @@ import { db } from '../firebase';
 import { useAllShifts, useResidents, useResidentsById, useSwaps } from '../hooks/data';
 import { isoWeekday } from '../lib/dates';
 import Badge from '../components/Badge';
+import { PageHeader } from '../components/ui';
 
 function pesoDia(weekday: number): { label: string; tone: 'good' | 'neutral' | 'warning' } {
   if (weekday === 3) return { label: 'Buena (jueves)', tone: 'good' };
@@ -53,7 +53,7 @@ export default function Cambios() {
         generatesDebt,
         debtSettled: false,
         createdBy: resident.id,
-        createdAt: serverTimestamp(),
+        createdAt: new Date().toISOString(),
         shiftId,
       });
       setShiftId('');
@@ -70,7 +70,7 @@ export default function Cambios() {
     batch.update(doc(db, 'shifts', targetShiftId), {
       actualResidentId: newResidentId,
       swapId,
-      updatedAt: serverTimestamp(),
+      updatedAt: new Date().toISOString(),
     });
     await batch.commit();
   }
@@ -86,13 +86,11 @@ export default function Cambios() {
   const pendingDebts = swaps.filter((s) => s.generatesDebt && !s.debtSettled && s.status === 'confirmado');
 
   return (
-    <div className="flex flex-col gap-6">
-      <div>
-        <h1 className="text-lg font-semibold">Cambios de guardia</h1>
-        <p className="text-sm text-text-dim">
-          Registrá un intercambio. Si no hay contraprestación inmediata, queda como deuda pendiente.
-        </p>
-      </div>
+    <div className="flex flex-col gap-4">
+      <PageHeader
+        title="Cambios de guardia"
+        subtitle="Registrá un intercambio. Si no hay contraprestación inmediata, queda como deuda pendiente. Las métricas cuentan a quien realmente hizo la guardia."
+      />
 
       {resident && (
         <form onSubmit={handleSubmit} className="bg-surface border border-border rounded-xl p-4 flex flex-col gap-3">

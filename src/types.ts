@@ -1,6 +1,7 @@
 // Modelo de dominio para la coordinación de guardias de R1.
-// Los documentos de Firestore siguen exactamente estas formas (ver src/firebase.ts
-// y firestore.rules para las colecciones correspondientes).
+// Los documentos de Firestore siguen exactamente estas formas (ver
+// firestore.rules para quién puede leer/escribir cada colección).
+// Todas las fechas de auditoría (createdAt, etc.) son strings ISO.
 
 export type Role = 'resident' | 'admin';
 
@@ -11,7 +12,8 @@ export interface Resident {
   email: string;
   role: Role;
   active: boolean;
-  createdAt?: string;
+  /** "MM-DD". No se asigna guardia ese día ni el anterior. */
+  birthday?: string;
 }
 
 export type Weekday = 0 | 1 | 2 | 3 | 4 | 5 | 6; // 0 = lunes ... 6 = domingo
@@ -26,31 +28,64 @@ export const WEEKDAY_LABELS: Record<Weekday, string> = {
   6: 'Domingo',
 };
 
+export const WEEKDAY_SHORT: Record<Weekday, string> = {
+  0: 'Lun',
+  1: 'Mar',
+  2: 'Mié',
+  3: 'Jue',
+  4: 'Vie',
+  5: 'Sáb',
+  6: 'Dom',
+};
+
 export const WEEKDAY_KEYS = ['mon', 'tue', 'wed', 'thu', 'fri', 'sat', 'sun'] as const;
 export type WeekdayKey = (typeof WEEKDAY_KEYS)[number];
 
 export type WeekdayRequirements = Record<WeekdayKey, number>;
 
-/** Config de requerimiento de R1 por día de semana para un mes dado (editable). */
-export interface MonthConfig {
-  id: string; // "YYYY-MM"
-  weekdayRequirements: WeekdayRequirements;
-  label?: string;
+/** Reglas internas del mes que usa el generador. */
+export interface MonthRules {
+  /** Distancia (días) que se considera prohibida: gap <= minGapHard. */
+  minGapHard: number;
+  /** Distancia a partir de la cual se considera ideal. */
+  minGapIdeal: number;
+  /** Tope de guardias por persona en el mes (0 = sin tope). */
+  maxPerPerson: number;
+  /** Evitar que alguien repita el mismo día de la semana en el mes. */
+  avoidSameWeekday: boolean;
+  /** Evitar sábado + preferiado (o dos de esa categoría) a la misma persona en el mes. */
+  avoidDoubleSatPref: boolean;
+  /** Quien tenga sábado común, que en lo posible tenga también un jueves. */
+  sabadoComunConJueves: boolean;
 }
 
 /**
- * Un día del calendario. Las "características" (preferiado, finde XL, jueves
- * feliz, sin cobertura) se derivan en runtime a partir de isHoliday +
- * requiredR1 + los días vecinos — ver src/lib/dates.ts — para que el feriado
- * sea la única fuente de verdad y no haya que mantener dos lugares en sync.
+ * Config del mes. Si un mes no tiene doc, se hereda la del mes anterior más
+ * cercano que tenga (ver effectiveMonthConfig en lib/dates.ts), así un cambio
+ * de esquema (p. ej. "desde marzo 2 R1 mar/jue/vie/sáb/dom") se carga una vez.
+ */
+export interface MonthConfig {
+  id: string; // "YYYY-MM"
+  weekdayRequirements: WeekdayRequirements;
+  rules?: Partial<MonthRules>;
+  /** Reglas/acuerdos internos del mes en texto libre (visibles para todos). */
+  notes?: string;
+}
+
+/**
+ * Overrides puntuales de un día. Solo existen docs para los días que tienen
+ * algo distinto (feriado, cobertura especial, nota): el resto del mes se
+ * sintetiza (ver buildMonthDays en lib/dates.ts).
  */
 export interface CalendarDay {
   id: string; // "YYYY-MM-DD"
-  date: string; // ISO date, igual a id
+  date: string;
   isHoliday: boolean;
   holidayName?: string;
-  /** Si está definido, pisa el default de WeekdayRequirements para este día puntual. */
-  requiredR1Override?: number;
+  /** De dónde salió el feriado: importado oficial, sanidad o cargado a mano. */
+  holidaySource?: 'oficial' | 'sanidad' | 'manual';
+  /** Si está definido, pisa el R1 requerido por día de semana. */
+  requiredR1Override?: number | null;
   notes?: string;
 }
 
@@ -64,7 +99,7 @@ export type DayTag =
   | 'sabado_comun'
   | 'sabado_finde_largo';
 
-/** Día del calendario ya resuelto con sus etiquetas derivadas, listo para UI/algoritmo. */
+/** Día ya resuelto con sus etiquetas derivadas, listo para UI/algoritmo. */
 export interface ResolvedDay {
   id: string;
   date: string;
@@ -79,23 +114,31 @@ export interface ResolvedDay {
 export type ShiftStatus = 'programada' | 'realizada' | 'cancelada';
 
 /**
- * Una guardia concreta: una fecha + slot (para cuando requiredR1 > 1).
- * assignedResidentId es la asignación "oficial" publicada; actualResidentId
- * es quien realmente la hizo (por default igual, diverge si hubo swap).
+ * Una guardia: fecha + slot (slotIndex > 0 cuando hay más de un R1).
+ * assignedResidentId = asignación publicada; actualResidentId = quien
+ * realmente la hizo (diverge si hubo cambio). Todas las métricas usan actual.
  */
 export interface Shift {
-  id: string;
-  date: string; // "YYYY-MM-DD"
-  slotIndex: number; // 0, 1, ... por si hay más de un R1 ese día
+  id: string; // "YYYY-MM-DD_slot"
+  date: string;
+  slotIndex: number;
   assignedResidentId: string;
   actualResidentId: string;
   status: ShiftStatus;
   swapId?: string;
+  raffleId?: string;
+  /** Lo carga quien hizo la guardia en su feedback. Es público (métrica de visibilidad). */
+  slept?: boolean;
   createdAt: string;
   updatedAt?: string;
 }
 
 export type RequestType = 'bloqueo' | 'pedido_fuerte' | 'preferencia';
+/**
+ * off = no puedo / no quiero estar de guardia; on = quiero esa guardia;
+ * posguardia = necesito el posguardia de esa fecha (= guardia el día anterior).
+ */
+export type RequestIntent = 'off' | 'on' | 'posguardia';
 export type RequestStatus = 'pendiente' | 'aceptado' | 'rechazado' | 'parcial';
 
 export const REQUEST_TYPE_LABEL: Record<RequestType, string> = {
@@ -110,12 +153,17 @@ export const REQUEST_TYPE_PRIORITY: Record<RequestType, number> = {
   preferencia: 2,
 };
 
-/** Pedido de un residente sobre una o más fechas. Visible para todos (transparencia). */
+/**
+ * Pedido de un residente sobre una o más fechas. Visible para todos.
+ * intent 'on' con varias fechas = "alguna de estas" (p. ej. sábado 7 o 21).
+ * intent 'off' con varias fechas = "ninguna de estas" (p. ej. vacaciones).
+ */
 export interface GuardiaRequest {
   id: string;
   residentId: string;
   type: RequestType;
-  dates: string[]; // fechas puntuales "YYYY-MM-DD"
+  intent?: RequestIntent; // docs viejos no lo tienen: ver requestIntent()
+  dates: string[];
   reason: string;
   status: RequestStatus;
   resolutionNote?: string;
@@ -124,9 +172,30 @@ export interface GuardiaRequest {
   resolvedAt?: string;
 }
 
+export function requestIntent(r: GuardiaRequest): RequestIntent {
+  if (r.type === 'bloqueo') return 'off';
+  return r.intent ?? 'on';
+}
+
+function minusOneDay(dateISO: string): string {
+  const d = new Date(`${dateISO}T00:00:00Z`);
+  d.setUTCDate(d.getUTCDate() - 1);
+  return d.toISOString().slice(0, 10);
+}
+
+/** Fechas de guardia a las que se refiere el pedido (posguardia del 10 = guardia el 9). */
+export function requestShiftDates(r: GuardiaRequest): string[] {
+  return requestIntent(r) === 'posguardia' ? r.dates.map(minusOneDay) : r.dates;
+}
+
+/** "Quiere estar de guardia" (directo o para tener el posguardia). */
+export function wantsShift(r: GuardiaRequest): boolean {
+  return requestIntent(r) !== 'off';
+}
+
 /**
- * Feedback post-guardia. Colección sensible: solo el autor y los admins
- * (Bea Bravo / Ana Alba) pueden leerla — ver firestore.rules.
+ * Feedback post-guardia. Privado: solo el autor y los admins lo leen.
+ * El dato "dormiste" además se copia a Shift.slept para que sea visible.
  */
 export interface ShiftFeedback {
   id: string;
@@ -134,21 +203,20 @@ export interface ShiftFeedback {
   residentId: string;
   date: string;
   slept: boolean;
-  hoursSlept?: number;
-  conformidad: 1 | 2 | 3 | 4 | 5; // conformidad con el cronograma de esa guardia
+  /** Carga de la guardia, 1 (tranquila) a 10 (durísima). */
+  carga?: number;
   comentario?: string;
   createdAt: string;
 }
 
 export type SwapStatus = 'solicitado' | 'confirmado' | 'rechazado';
 
-/** Intercambio de guardias. Si no hay contraprestación inmediata, genera deuda. */
 export interface Swap {
   id: string;
   shiftId: string;
   date: string;
-  fromResidentId: string; // quien tenía la guardia originalmente
-  toResidentId: string; // quien finalmente la hace
+  fromResidentId: string;
+  toResidentId: string;
   reason?: string;
   status: SwapStatus;
   generatesDebt: boolean;
@@ -157,20 +225,101 @@ export interface Swap {
   createdAt: string;
 }
 
-/** Contadores de equidad acumulados para un residente en un período. */
+export interface LinkItem {
+  id: string;
+  title: string;
+  url: string;
+  tags: string[];
+  description?: string;
+  pinned?: boolean;
+  createdBy: string;
+  createdAt: string;
+}
+
+export type TaskStatus = 'pendiente' | 'en_curso' | 'hecha';
+
+export interface CamadaTask {
+  id: string;
+  title: string;
+  description?: string;
+  status: TaskStatus;
+  assigneeIds: string[];
+  dueDate?: string;
+  category?: string;
+  createdBy: string;
+  createdAt: string;
+  updatedAt?: string;
+}
+
+export const NOTE_CATEGORIES = ['AAARBA', 'Cursos y clases', 'Rotaciones', 'Administrativo', 'Otro'] as const;
+export type NoteCategory = (typeof NOTE_CATEGORIES)[number];
+
+export interface InfoNote {
+  id: string;
+  title: string;
+  body: string;
+  category: NoteCategory;
+  pinned?: boolean;
+  createdBy: string;
+  createdAt: string;
+  updatedAt?: string;
+}
+
+export type RaffleStatus = 'pendiente' | 'sorteado';
+
+export interface Raffle {
+  id: string;
+  title: string;
+  description?: string;
+  participantIds: string[];
+  winnersCount: number;
+  status: RaffleStatus;
+  /** Orden completo resultante del sorteo; los primeros winnersCount ganan. */
+  order?: string[];
+  drawnBy?: string;
+  drawnAt?: string;
+  /** Si el sorteo es por una guardia puntual del generador. */
+  linkedSlot?: { date: string; slotIndex: number };
+  createdBy: string;
+  createdAt: string;
+}
+
+/** Un slot del editor del generador. */
+export interface DraftSlot {
+  date: string;
+  slotIndex: number;
+  residentId: string | null;
+  locked?: boolean;
+  raffleId?: string;
+}
+
+/** Borrador de cronograma de un mes (solo admins). */
+export interface ScheduleDraft {
+  id: string; // "YYYY-MM"
+  slots: DraftSlot[];
+  updatedBy: string;
+  updatedAt: string;
+}
+
+/** Contadores de equidad de un residente en un período. */
 export interface EquityCounters {
   residentId: string;
   totalGuardias: number;
+  lunAMie: number;
+  jueves: number;
+  viernes: number;
   sabados: number;
+  domingos: number;
   preferiados: number;
   sabadosYPreferiados: number;
   feriados: number;
   findesXL: number;
   juevesFelices: number;
-  viernes: number;
-  domingos: number;
+  findeTotal: number; // vie + sáb + dom
   findesLibresA: number; // sin guardia vie/sáb/dom
-  findesLibresB: number; // estricto: tampoco posguardia del jueves
+  findesLibresB: number; // además sin posguardia del jueves
   distanciaMinima: number | null;
   distanciaPromedio: number | null;
+  sinDormir: number; // guardias reportadas sin dormir
+  conReporteSueno: number; // guardias con dato de sueño cargado
 }

@@ -2,6 +2,7 @@ import type {
   CalendarDay,
   DayTag,
   MonthConfig,
+  MonthRules,
   ResolvedDay,
   Weekday,
   WeekdayKey,
@@ -19,9 +20,25 @@ export const DEFAULT_WEEKDAY_REQUIREMENTS: WeekdayRequirements = {
   sun: 1,
 };
 
+export const DEFAULT_RULES: MonthRules = {
+  minGapHard: 3,
+  minGapIdeal: 5,
+  maxPerPerson: 0,
+  avoidSameWeekday: true,
+  avoidDoubleSatPref: true,
+  sabadoComunConJueves: true,
+};
+
+const TZ = 'America/Argentina/Buenos_Aires';
+
+/** Fecha de hoy en Argentina, "YYYY-MM-DD" (no la de UTC). */
+export function todayISO(now: Date = new Date()): string {
+  return new Intl.DateTimeFormat('en-CA', { timeZone: TZ }).format(now);
+}
+
 /** 0 = lunes ... 6 = domingo (a diferencia de Date#getDay, que arranca en domingo). */
 export function isoWeekday(dateISO: string): Weekday {
-  const jsDay = new Date(`${dateISO}T00:00:00Z`).getUTCDay(); // 0 = domingo
+  const jsDay = new Date(`${dateISO}T00:00:00Z`).getUTCDay();
   return ((jsDay + 6) % 7) as Weekday;
 }
 
@@ -42,95 +59,149 @@ export function diffDays(a: string, b: string): number {
 }
 
 export function monthKey(dateISO: string): string {
-  return dateISO.slice(0, 7); // "YYYY-MM"
+  return dateISO.slice(0, 7);
 }
 
-export function requiredR1For(
-  dateISO: string,
-  day: CalendarDay | undefined,
-  monthConfigs: Record<string, MonthConfig>,
-): number {
-  if (day?.requiredR1Override !== undefined) return day.requiredR1Override;
-  const cfg = monthConfigs[monthKey(dateISO)];
-  const weekdayReqs = cfg?.weekdayRequirements ?? DEFAULT_WEEKDAY_REQUIREMENTS;
-  return weekdayReqs[weekdayKey(dateISO)];
+export function shiftMonthKey(key: string, delta: number): string {
+  const [y, m] = key.split('-').map(Number);
+  return new Date(Date.UTC(y, m - 1 + delta, 1)).toISOString().slice(0, 7);
+}
+
+export function monthDates(key: string): string[] {
+  const [y, m] = key.split('-').map(Number);
+  const count = new Date(Date.UTC(y, m, 0)).getUTCDate();
+  return Array.from({ length: count }, (_, i) => `${key}-${String(i + 1).padStart(2, '0')}`);
+}
+
+/** Lista de meses entre dos claves "YYYY-MM", inclusive. */
+export function monthsBetween(from: string, to: string): string[] {
+  const out: string[] = [];
+  for (let k = from; k <= to; k = shiftMonthKey(k, 1)) out.push(k);
+  return out;
+}
+
+export function monthLabel(key: string): string {
+  const [y, m] = key.split('-').map(Number);
+  const label = new Date(Date.UTC(y, m - 1, 1)).toLocaleDateString('es-AR', {
+    month: 'long',
+    year: 'numeric',
+    timeZone: 'UTC',
+  });
+  return label.charAt(0).toUpperCase() + label.slice(1);
+}
+
+/** "jue 15/10" */
+export function shortDateLabel(dateISO: string): string {
+  const wd = ['lun', 'mar', 'mié', 'jue', 'vie', 'sáb', 'dom'][isoWeekday(dateISO)];
+  return `${wd} ${Number(dateISO.slice(8, 10))}/${Number(dateISO.slice(5, 7))}`;
+}
+
+export interface EffectiveMonthConfig {
+  weekdayRequirements: WeekdayRequirements;
+  rules: MonthRules;
+  notes: string;
+  /** Mes del que se heredó la config, o null si el mes tiene la suya propia. */
+  inheritedFrom: string | null;
+  hasOwnConfig: boolean;
 }
 
 /**
- * Resuelve un rango de días de calendario a ResolvedDay[] con todas las
- * etiquetas derivadas (feriado, preferiado, finde XL, jueves feliz, sin
- * cobertura, sábado común/finde largo). Necesita el mapa completo de
- * CalendarDay (al menos +1/-1 día de margen) porque varias etiquetas miran
- * al día siguiente o anterior.
+ * Config efectiva de un mes: la propia si existe; si no, la del mes anterior
+ * más cercano que tenga. Las notas no se heredan (son del mes puntual).
  */
-export function resolveCalendarDays(
-  days: CalendarDay[],
-  monthConfigs: MonthConfig[] = [],
+export function effectiveMonthConfig(key: string, configs: MonthConfig[]): EffectiveMonthConfig {
+  const own = configs.find((c) => c.id === key);
+  const source =
+    own ??
+    [...configs].filter((c) => c.id < key).sort((a, b) => b.id.localeCompare(a.id))[0];
+  return {
+    weekdayRequirements: source?.weekdayRequirements ?? DEFAULT_WEEKDAY_REQUIREMENTS,
+    rules: { ...DEFAULT_RULES, ...(source?.rules ?? {}) },
+    notes: own?.notes ?? '',
+    inheritedFrom: own ? null : (source?.id ?? null),
+    hasOwnConfig: !!own,
+  };
+}
+
+function resolveDay(
+  dateISO: string,
+  stored: CalendarDay | undefined,
+  weekdayReqs: WeekdayRequirements,
+  holidayAt: (d: string) => boolean,
+): ResolvedDay {
+  const weekday = isoWeekday(dateISO);
+  const override = stored?.requiredR1Override;
+  const requiredR1 =
+    override !== undefined && override !== null ? override : weekdayReqs[WEEKDAY_KEYS[weekday]];
+  const isHoliday = stored?.isHoliday ?? false;
+  const tags: DayTag[] = [];
+
+  if (isHoliday) tags.push('feriado');
+  if (requiredR1 === 0) tags.push('sin_cobertura');
+  if (weekday === 5 || weekday === 6) tags.push('finde');
+
+  // Preferiado: día no feriado inmediatamente anterior al inicio de un
+  // bloque de feriados (el día siguiente es feriado y hoy no).
+  if (!isHoliday && holidayAt(addDaysISO(dateISO, 1))) tags.push('preferiado');
+
+  // Jueves: "finde XL" si el lunes siguiente es feriado; si no, "jueves feliz".
+  if (weekday === 3) tags.push(holidayAt(addDaysISO(dateISO, 4)) ? 'finde_xl' : 'jueves_feliz');
+
+  // Sábado de finde largo: el viernes, sábado, domingo o lunes es feriado.
+  if (weekday === 5) {
+    const long = [-1, 0, 1, 2].some((d) => holidayAt(addDaysISO(dateISO, d)));
+    tags.push(long ? 'sabado_finde_largo' : 'sabado_comun');
+  }
+
+  return {
+    id: dateISO,
+    date: dateISO,
+    weekday,
+    requiredR1,
+    isHoliday,
+    holidayName: stored?.holidayName,
+    tags,
+    notes: stored?.notes,
+  };
+}
+
+/**
+ * Todos los días de un mes resueltos, existan o no docs en calendarDays:
+ * el mes se sintetiza y los docs guardados solo aportan overrides. Los
+ * feriados se buscan en todos los docs (no solo los del mes), así un
+ * preferiado el 31 que depende de un feriado el 1 del mes siguiente funciona.
+ */
+export function resolveMonth(
+  key: string,
+  storedDays: CalendarDay[],
+  configs: MonthConfig[],
 ): ResolvedDay[] {
-  const byId = new Map(days.map((d) => [d.id, d]));
-  const cfgByMonth = Object.fromEntries(monthConfigs.map((c) => [c.id, c]));
-  const sorted = [...days].sort((a, b) => a.date.localeCompare(b.date));
+  const byId = new Map(storedDays.map((d) => [d.id, d]));
+  const holidayAt = (d: string) => byId.get(d)?.isHoliday ?? false;
+  const { weekdayRequirements } = effectiveMonthConfig(key, configs);
+  return monthDates(key).map((date) => resolveDay(date, byId.get(date), weekdayRequirements, holidayAt));
+}
 
-  const holidayAt = (dateISO: string) => byId.get(dateISO)?.isHoliday ?? false;
-
-  return sorted.map((day) => {
-    const weekday = isoWeekday(day.date);
-    const requiredR1 = requiredR1For(day.date, day, cfgByMonth);
-    const tags: DayTag[] = [];
-
-    if (day.isHoliday) tags.push('feriado');
-    if (requiredR1 === 0) tags.push('sin_cobertura');
-    if (weekday === 5 || weekday === 6) tags.push('finde');
-
-    // Preferiado: día no feriado inmediatamente anterior al inicio de un
-    // bloque de feriados consecutivos (el día siguiente es feriado y hoy no).
-    const nextDay = addDaysISO(day.date, 1);
-    if (!day.isHoliday && holidayAt(nextDay)) tags.push('preferiado');
-
-    // Jueves: "finde XL" si el lunes siguiente (jueves+4) es feriado;
-    // si no, es un "jueves feliz" común.
-    if (weekday === 3) {
-      const nextMonday = addDaysISO(day.date, 4);
-      if (holidayAt(nextMonday)) {
-        tags.push('finde_xl');
-      } else {
-        tags.push('jueves_feliz');
-      }
-    }
-
-    // Sábado: "finde largo" si algún día entre el viernes y el lunes
-    // siguientes (inclusive) es feriado.
-    if (weekday === 5) {
-      const friday = day.date;
-      const sunday = addDaysISO(day.date, 1);
-      const monday = addDaysISO(day.date, 2);
-      const isLongWeekend = holidayAt(friday) || holidayAt(sunday) || holidayAt(monday);
-      tags.push(isLongWeekend ? 'sabado_finde_largo' : 'sabado_comun');
-    }
-
-    return {
-      id: day.id,
-      date: day.date,
-      weekday,
-      requiredR1,
-      isHoliday: day.isHoliday,
-      holidayName: day.holidayName,
-      tags,
-      notes: day.notes,
-    };
-  });
+export function resolveMonths(
+  keys: string[],
+  storedDays: CalendarDay[],
+  configs: MonthConfig[],
+): ResolvedDay[] {
+  return keys.flatMap((k) => resolveMonth(k, storedDays, configs));
 }
 
 export function hasTag(day: ResolvedDay, tag: DayTag): boolean {
   return day.tags.includes(tag);
 }
 
-/** Distancias (en días) entre guardias consecutivas de una misma persona, ordenadas. */
+export function isSabadoOrPreferiado(day: ResolvedDay): boolean {
+  return day.weekday === 5 || hasTag(day, 'preferiado');
+}
+
+/** Distancias (en días) entre fechas consecutivas, ordenadas. */
 export function gapsBetween(datesISO: string[]): number[] {
   const sorted = [...datesISO].sort();
   const gaps: number[] = [];
-  for (let i = 1; i < sorted.length; i++) {
-    gaps.push(diffDays(sorted[i - 1], sorted[i]));
-  }
+  for (let i = 1; i < sorted.length; i++) gaps.push(diffDays(sorted[i - 1], sorted[i]));
   return gaps;
 }
