@@ -3,7 +3,8 @@ import { deleteDoc, doc, setDoc, updateDoc, writeBatch } from 'firebase/firestor
 import { useMemo, useState } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
 import Badge from '../components/Badge';
-import { Card, Dot, Empty, MonthNav, PageHeader, Segmented, btnPrimary, btnSecondary, inputBase, inputCls } from '../components/ui';
+import { Card, Dot, Empty, Modal, MonthNav, PageHeader, Segmented, btnPrimary, btnSecondary, inputBase, inputCls } from '../components/ui';
+import { downloadAllJson, downloadAllXlsx, fetchAll } from '../lib/exportAll';
 import { db } from '../firebase';
 import { useAcks, useActivity, useCalendarData, useFeedback, usePublications, usePushTokens, useResidents, useResidentsById } from '../hooks/data';
 import { AckAlerts } from '../components/Conformidad';
@@ -58,6 +59,7 @@ export default function Admin() {
                 { value: 'historial', label: '🕓 Historial' },
               ]}
             />
+            <ExportAllButton />
             <Link to="/admin/generador" className={btnPrimary}>
               ✨ Generador
             </Link>
@@ -530,6 +532,57 @@ function FeedbackAdmin() {
         )}
       </Card>
     </div>
+  );
+}
+
+// ---------------------------------------------------------------- Exportar todo
+
+function ExportAllButton() {
+  const [open, setOpen] = useState(false);
+  const [busy, setBusy] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
+
+  async function run(kind: 'xlsx' | 'json') {
+    setBusy(kind);
+    setError(null);
+    try {
+      const data = await fetchAll();
+      if (kind === 'xlsx') downloadAllXlsx(data);
+      else downloadAllJson(data);
+      await logActivity({ entity: 'residente', summary: `Exportó todos los datos de la app (${kind === 'xlsx' ? 'Excel' : 'copia de seguridad'})` });
+    } catch (e) {
+      setError((e as Error).message);
+    } finally {
+      setBusy(null);
+    }
+  }
+
+  return (
+    <>
+      <button onClick={() => setOpen(true)} className={btnSecondary}>
+        💾 Exportar todo
+      </button>
+      {open && (
+        <Modal open onClose={() => setOpen(false)} title="Exportar todos los datos">
+          <div className="flex flex-col gap-2">
+            <button onClick={() => run('xlsx')} disabled={!!busy} className="text-left rounded-xl border border-border p-3 hover:bg-surface-2">
+              <span className="block text-sm font-medium">📊 Excel con todo</span>
+              <span className="block text-xs text-text-dim mt-0.5">
+                Resumen acumulado por persona + una hoja por cada cosa (guardias, pedidos, cambios, sorteos, feedback, carriles,
+                historial…), con nombres en vez de códigos.
+              </span>
+            </button>
+            <button onClick={() => run('json')} disabled={!!busy} className="text-left rounded-xl border border-border p-3 hover:bg-surface-2">
+              <span className="block text-sm font-medium">🗄️ Copia de seguridad (.json)</span>
+              <span className="block text-xs text-text-dim mt-0.5">Todo tal cual está en la base, para guardar o restaurar.</span>
+            </button>
+            {busy && <p className="text-xs text-text-dim">Preparando…</p>}
+            {error && <p className="text-sm text-danger">No se pudo exportar: {error}</p>}
+            <p className="text-xs text-text-dim mt-1">Incluye el feedback privado: guardalo en un lugar seguro.</p>
+          </div>
+        </Modal>
+      )}
+    </>
   );
 }
 

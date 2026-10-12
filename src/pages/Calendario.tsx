@@ -6,7 +6,16 @@ import RequestTypeBadge from '../components/RequestTypeBadge';
 import { Card, Dot, Modal, MonthNav, PageHeader, ResidentChip, btnSecondary } from '../components/ui';
 import { useAuthContext } from '../context/AuthContext';
 import { db } from '../firebase';
-import { useAllShifts, useCalendarData, useEvents, useRaffles, useRequests, useResidents, useResidentsById } from '../hooks/data';
+import {
+  useAllShifts,
+  useCalendarData,
+  useEvents,
+  useRaffles,
+  useRequests,
+  useResidents,
+  useResidentsById,
+  useRotations,
+} from '../hooks/data';
 import { eventEmoji } from '../components/Eventos';
 import { useColors } from '../hooks/useColors';
 import { useMonth } from '../hooks/useMonth';
@@ -15,10 +24,10 @@ import { effectiveMonthConfig, resolveMonth, shortDateLabel, todayISO } from '..
 import { logActivity } from '../lib/activity';
 import { DEFAULT_DISABLED_NOTE, disableSlot, enableSlot } from '../lib/disableSlot';
 import { buildSlots } from '../lib/generator';
-import { downloadFile, shiftsToIcs } from '../lib/ics';
+import ExportMonthModal from '../components/ExportMonthModal';
 import { LEGEND, TAG_EMOJI, TAG_LABEL, dayBgClass } from '../lib/labels';
 import type { CamadaEvent, GuardiaRequest, Resident, ResolvedDay, Shift, ShiftStatus } from '../types';
-import { WEEKDAY_SHORT, requestIntent, requestShiftDates } from '../types';
+import { WEEKDAY_SHORT, requestIntent, requesterName, requestShiftDates } from '../types';
 
 export default function Calendario() {
   const { resident: me, isAdmin } = useAuthContext();
@@ -34,6 +43,8 @@ export default function Calendario() {
   const color = useColors(residents);
   const [selected, setSelected] = useState<string | null>(null);
   const [onlyMine, setOnlyMine] = useState(false);
+  const [exporting, setExporting] = useState(false);
+  const { rotations } = useRotations();
 
   const days = useMemo(() => resolveMonth(monthKey, storedDays, monthConfigs), [monthKey, storedDays, monthConfigs]);
   const cfg = useMemo(() => effectiveMonthConfig(monthKey, monthConfigs), [monthKey, monthConfigs]);
@@ -62,21 +73,8 @@ export default function Calendario() {
               <input type="checkbox" checked={onlyMine} onChange={(e) => setOnlyMine(e.target.checked)} />
               Resaltar las mías
             </label>
-            <button
-              className={btnSecondary}
-              onClick={() =>
-                downloadFile(
-                  'mis-guardias.ics',
-                  shiftsToIcs(
-                    shifts.filter((s) => s.actualResidentId === me?.id && s.status !== 'cancelada'),
-                    'Guardia',
-                  ),
-                  'text/calendar',
-                )
-              }
-              title="Descarga tus guardias para importarlas en Google Calendar / Apple / Outlook"
-            >
-              📅 Exportar mis guardias
+            <button className={btnSecondary} onClick={() => setExporting(true)} title="Excel del mes, calendario del grupo o tus guardias">
+              📥 Exportar
             </button>
             <MonthNav monthKey={monthKey} prev={prev} next={next} />
           </>
@@ -153,6 +151,14 @@ export default function Calendario() {
             <span className="px-2 py-1">🎂 cumpleaños · 🎲 sorteo pendiente · 🎓 evento (AAARBA, cursos) · 🚫 la toma otra persona</span>
           </div>
         </>
+      )}
+
+      {exporting && (
+        <ExportMonthModal
+          input={{ monthKey, days, shifts, residents, rotations, events }}
+          meId={me?.id}
+          onClose={() => setExporting(false)}
+        />
       )}
 
       {selectedDay && (
@@ -375,7 +381,7 @@ function DayModal({
             {requests.map((r) => (
               <li key={r.id} className="text-sm flex items-center gap-2 flex-wrap">
                 <RequestTypeBadge type={r.type} />
-                <span className="font-medium">{byId.get(r.residentId)?.shortName}</span>
+                <span className="font-medium">{requesterName(r, byId)}</span>
                 <span className="text-text-dim">
                   {requestIntent(r) === 'off' ? 'no puede/no quiere' : requestIntent(r) === 'on' ? 'quiere esta guardia' : 'la quiere para tener el posguardia'}
                 </span>

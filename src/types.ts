@@ -184,10 +184,22 @@ export interface GuardiaRequest {
   status: RequestStatus;
   /** Quién lo cargó (una admin puede cargarlo en nombre de otra persona). */
   createdBy?: string;
+  /**
+   * Pedido de alguien de afuera de la camada (p. ej. un residente mayor que
+   * pide una guardia): residentId = EXTERNAL_REQUESTER y acá va el nombre.
+   */
+  externalName?: string;
   resolutionNote?: string;
   createdAt: string;
   resolvedBy?: string;
   resolvedAt?: string;
+}
+
+export const EXTERNAL_REQUESTER = 'externo';
+
+/** Nombre de quien hace el pedido (residente de la camada o persona de afuera). */
+export function requesterName(r: GuardiaRequest, byId: Map<string, { shortName: string }>): string {
+  return r.externalName || byId.get(r.residentId)?.shortName || '?';
 }
 
 export function requestIntent(r: GuardiaRequest): RequestIntent {

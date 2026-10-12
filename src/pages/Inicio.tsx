@@ -33,6 +33,7 @@ import { TAG_EMOJI, TAG_LABEL } from '../lib/labels';
 import { winners } from '../lib/raffles';
 import { awayMonths } from '../lib/rotations';
 import type { EquityCounters, ResolvedDay } from '../types';
+import { requesterName } from '../types';
 
 const SNAPSHOT: { key: keyof EquityCounters; label: string; benefit?: boolean; hint: string }[] = [
   { key: 'totalGuardias', label: 'Guardias totales', hint: 'todas las guardias hechas o publicadas' },
@@ -398,7 +399,7 @@ export default function Inicio() {
             {pendingRequests.map((r) => (
               <li key={r.id}>
                 <Link to="/pedidos" className="hover:underline">
-                  <span className="font-medium">{byId.get(r.residentId)?.shortName}</span>{' '}
+                  <span className="font-medium">{requesterName(r, byId)}</span>{' '}
                   <span className="text-text-dim">pidió {r.dates.slice(0, 2).map(shortDateLabel).join(', ')}{r.dates.length > 2 ? '…' : ''}</span>
                 </Link>
               </li>

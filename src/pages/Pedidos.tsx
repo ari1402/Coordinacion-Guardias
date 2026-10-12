@@ -6,11 +6,13 @@ import RequestTypeBadge from '../components/RequestTypeBadge';
 import { Card, Dot, Empty, PageHeader, Segmented, btnPrimary, btnSecondary, inputCls } from '../components/ui';
 import { useAuthContext } from '../context/AuthContext';
 import { db } from '../firebase';
-import { useRequests, useResidents, useResidentsById } from '../hooks/data';
+import { useAllShifts, useCalendarData, useRequests, useResidents, useResidentsById } from '../hooks/data';
+import { disableSlot } from '../lib/disableSlot';
+import { buildSlots } from '../lib/generator';
 import { useColors } from '../hooks/useColors';
-import { addDaysISO, diffDays, monthKey, monthLabel, shortDateLabel, todayISO } from '../lib/dates';
+import { addDaysISO, diffDays, monthKey, monthLabel, resolveMonth, shortDateLabel, todayISO } from '../lib/dates';
 import type { GuardiaRequest, RequestIntent, RequestStatus, RequestType } from '../types';
-import { REQUEST_TYPE_LABEL, REQUEST_TYPE_PRIORITY, requestIntent, requestShiftDates } from '../types';
+import { EXTERNAL_REQUESTER, REQUEST_TYPE_LABEL, REQUEST_TYPE_PRIORITY, requestIntent, requesterName, requestShiftDates } from '../types';
 import type { Resident } from '../types';
 import { logActivity } from '../lib/activity';
 
@@ -43,7 +45,9 @@ function NewRequest({
   const [to, setTo] = useState('');
   const [dates, setDates] = useState<string[]>([]);
   const [reason, setReason] = useState('');
+  const [externalName, setExternalName] = useState('');
   const [saving, setSaving] = useState(false);
+  const external = forId === EXTERNAL_REQUESTER;
 
   const effectiveType: RequestType = intent !== 'off' && type === 'bloqueo' ? 'pedido_fuerte' : type;
   const rangeDates = useMemo(() => {
@@ -54,11 +58,12 @@ function NewRequest({
 
   async function submit(e: React.FormEvent) {
     e.preventDefault();
-    if (finalDates.length === 0) return;
+    if (finalDates.length === 0 || (external && !externalName.trim())) return;
     setSaving(true);
     try {
       await addDoc(collection(db, 'requests'), {
         residentId: forId,
+        ...(external ? { externalName: externalName.trim() } : {}),
         type: effectiveType,
         intent,
         dates: finalDates,
@@ -67,7 +72,7 @@ function NewRequest({
         createdBy: me.id,
         createdAt: new Date().toISOString(),
       });
-      const who = residents.find((r) => r.id === forId)?.shortName ?? '';
+      const who = external ? externalName.trim() : (residents.find((r) => r.id === forId)?.shortName ?? '');
       await logActivity({
         entity: 'pedido',
         summary:
@@ -77,6 +82,7 @@ function NewRequest({
         changes: [`Tipo: ${REQUEST_TYPE_LABEL[effectiveType]}`, ...(reason.trim() ? [`Motivo: ${reason.trim()}`] : [])],
       });
       setForId(me.id);
+      setExternalName('');
       setDates([]);
       setFrom('');
       setTo('');
@@ -98,8 +104,25 @@ function NewRequest({
                   {r.id === me.id ? `${r.shortName} (yo)` : r.shortName}
                 </option>
               ))}
+              <option value={EXTERNAL_REQUESTER}>Otro…</option>
             </select>
           </label>
+        )}
+        {external && (
+          <>
+            <input
+              value={externalName}
+              onChange={(e) => setExternalName(e.target.value)}
+              placeholder="¿Quién lo pide? (ej. Biviano, R2)"
+              className={inputCls}
+              required
+              autoFocus
+            />
+            <p className="text-xs text-text-dim -mt-1">
+              Para alguien de afuera de la camada, por ejemplo un residente mayor que pide una guardia. El generador no lo
+              asigna solo: si lo aceptan, usá “🚫 Deshabilitar esa guardia” en el pedido.
+            </p>
+          </>
         )}
         <Segmented<RequestIntent>
           value={intent}
@@ -176,7 +199,7 @@ function NewRequest({
         )}
         {mode === 'rango' && rangeDates.length > 0 && <p className="text-xs text-text-dim">{rangeDates.length} días</p>}
         <textarea value={reason} onChange={(e) => setReason(e.target.value)} rows={2} placeholder="Motivo (lo ve todo el grupo)" className={clsx(inputCls, 'resize-none')} />
-        <button disabled={saving || finalDates.length === 0} className={clsx(btnPrimary, 'self-start')}>
+        <button disabled={saving || finalDates.length === 0 || (external && !externalName.trim())} className={clsx(btnPrimary, 'self-start')}>
           {saving ? 'Enviando…' : 'Enviar pedido'}
         </button>
       </form>
@@ -195,6 +218,8 @@ export default function Pedidos() {
   const { resident: me, isAdmin } = useAuthContext();
   const { requests, loading } = useRequests();
   const { residents } = useResidents();
+  const { shifts } = useAllShifts();
+  const { storedDays, monthConfigs } = useCalendarData();
   const byId = useResidentsById(residents);
   const color = useColors(residents);
   const [month, setMonth] = useState<string>('proximos');
@@ -217,9 +242,27 @@ export default function Pedidos() {
     });
     await logActivity({
       entity: 'pedido',
-      summary: `Marcó como ${status} el pedido de ${byId.get(r.residentId)?.shortName} (${datesSummary(r.dates)})`,
+      summary: `Marcó como ${status} el pedido de ${requesterName(r, byId)} (${datesSummary(r.dates)})`,
       changes: [`Estado: ${r.status} → ${status}`, ...(notes[r.id] ? [`Nota: ${notes[r.id]}`] : [])],
     });
+  }
+
+  /** Pedido de afuera aceptado: esa guardia la hace esa persona, no un R1. */
+  async function disableFor(r: GuardiaRequest) {
+    const name = requesterName(r, byId);
+    for (const date of requestShiftDates(r)) {
+      const day = resolveMonth(monthKey(date), storedDays, monthConfigs).find((d) => d.date === date);
+      if (!day || day.requiredR1 === 0) continue;
+      const slots = buildSlots([day]).map((x) => x.slotIndex);
+      const taken = new Map(shifts.filter((x) => x.date === date).map((x) => [x.slotIndex, x]));
+      const slot = slots.find((i) => !taken.has(i)) ?? slots[slots.length - 1];
+      const shift = taken.get(slot);
+      const msg = `${shortDateLabel(date)}: deshabilitar una guardia R1 (la toma ${name})?` +
+        (shift ? `\n\nSe borra la guardia publicada de ${byId.get(shift.actualResidentId)?.shortName}.` : '');
+      if (!confirm(msg)) continue;
+      await disableSlot(day, slot, `La toma ${name}`, shift, (id) => byId.get(id)?.shortName ?? id);
+    }
+    if (r.status === 'pendiente') await resolve(r, 'aceptado');
   }
 
   async function remove(r: GuardiaRequest) {
@@ -227,7 +270,7 @@ export default function Pedidos() {
     await deleteDoc(doc(db, 'requests', r.id));
     await logActivity({
       entity: 'pedido',
-      summary: `Borró el pedido de ${byId.get(r.residentId)?.shortName} (${datesSummary(r.dates)})`,
+      summary: `Borró el pedido de ${requesterName(r, byId)} (${datesSummary(r.dates)})`,
       changes: [`Era: ${intentLabel(requestIntent(r))}, ${REQUEST_TYPE_LABEL[r.type]}, estado ${r.status}`],
     });
   }
@@ -250,6 +293,7 @@ export default function Pedidos() {
             </select>
             <select value={person} onChange={(e) => setPerson(e.target.value)} className="bg-surface border border-border rounded-xl px-3 py-2 text-sm">
               <option value="todas">Todas las personas</option>
+              <option value={EXTERNAL_REQUESTER}>De afuera (residentes mayores…)</option>
               {residents.map((r) => (
                 <option key={r.id} value={r.id}>
                   {r.shortName}
@@ -269,8 +313,9 @@ export default function Pedidos() {
                 return (
                   <li key={r.id} className="bg-surface border border-border rounded-2xl p-4 flex flex-col gap-2">
                     <div className="flex items-center gap-2 flex-wrap">
-                      <Dot color={color(r.residentId)} />
-                      <span className="font-medium text-sm">{byId.get(r.residentId)?.shortName}</span>
+                      <Dot color={r.externalName ? 'var(--text-dim)' : color(r.residentId)} />
+                      <span className="font-medium text-sm">{requesterName(r, byId)}</span>
+                      {r.externalName && <Badge>de afuera</Badge>}
                       <span className="text-sm">
                         {intent === 'off' ? '🙅 sin guardia' : intent === 'on' ? '🙋 quiere la guardia' : '🌅 necesita el posguardia'}
                       </span>
@@ -307,6 +352,11 @@ export default function Pedidos() {
                             Rechazar
                           </button>
                         </>
+                      )}
+                      {isAdmin && r.externalName && intent !== 'off' && r.status !== 'rechazado' && (
+                        <button onClick={() => disableFor(r)} className="text-xs px-2.5 py-1.5 rounded-lg border border-border font-medium">
+                          🚫 Deshabilitar esa guardia
+                        </button>
                       )}
                       {(isAdmin || (mine && r.status === 'pendiente')) && (
                         <button onClick={() => remove(r)} className="text-xs text-danger underline ml-auto">

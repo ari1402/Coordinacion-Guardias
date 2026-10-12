@@ -55,7 +55,7 @@ import {
   saveDraft,
 } from '../lib/schedule';
 import type { DraftSlot, Raffle, ResolvedDay } from '../types';
-import { WEEKDAY_KEYS, WEEKDAY_SHORT, requestIntent, requestShiftDates } from '../types';
+import { EXTERNAL_REQUESTER, WEEKDAY_KEYS, WEEKDAY_SHORT, requestIntent, requesterName, requestShiftDates } from '../types';
 
 export default function Generador() {
   const { resident: me } = useAuthContext();
@@ -219,13 +219,18 @@ export default function Generador() {
   }, [draft]);
 
   const dayInfo = useMemo(() => {
-    const info = new Map<string, { blocked: Set<string>; off: Set<string>; on: Set<string>; bdays: string[] }>();
+    const info = new Map<string, { blocked: Set<string>; off: Set<string>; on: Set<string>; ext: string[]; bdays: string[] }>();
     for (const d of days) {
       const blocked = new Set<string>();
       const off = new Set<string>();
       const on = new Set<string>();
+      const ext: string[] = [];
       for (const r of monthRequests) {
         if (r.status === 'rechazado' || !requestShiftDates(r).includes(d.date)) continue;
+        if (r.residentId === EXTERNAL_REQUESTER) {
+          if (requestIntent(r) !== 'off') ext.push(r.externalName || 'Otra persona');
+          continue;
+        }
         if (r.type === 'bloqueo') blocked.add(r.residentId);
         else if (requestIntent(r) === 'off') off.add(r.residentId);
         else on.add(r.residentId);
@@ -236,6 +241,7 @@ export default function Generador() {
         blocked,
         off,
         on,
+        ext,
         bdays: active.filter((r) => isBirthday(d.date, r)).map((r) => r.shortName),
       });
     }
@@ -273,7 +279,7 @@ export default function Generador() {
                   {monthRequests.map((r) => (
                     <li key={r.id} className={clsx('flex gap-2', r.status === 'rechazado' && 'line-through opacity-50')}>
                       <span>{r.type === 'bloqueo' ? '⛔' : requestIntent(r) === 'off' ? '🙅' : requestIntent(r) === 'on' ? '🙋' : '🌅'}</span>
-                      <span className="font-medium">{byId.get(r.residentId)?.shortName}</span>
+                      <span className="font-medium">{requesterName(r, byId)}</span>
                       <span className="text-text-dim truncate">
                         {requestShiftDates(r).filter((d) => d.startsWith(monthKey)).map(shortDateLabel).join(', ')}
                       </span>
@@ -638,7 +644,7 @@ function DayCell({
 }: {
   day: ResolvedDay;
   slots: DraftSlot[];
-  info: { blocked: Set<string>; off: Set<string>; on: Set<string>; bdays: string[] };
+  info: { blocked: Set<string>; off: Set<string>; on: Set<string>; ext: string[]; bdays: string[] };
   residents: { id: string; shortName: string }[];
   byId: Map<string, { shortName: string }>;
   color: (id: string | null) => string;
@@ -741,8 +747,9 @@ function DayCell({
           </button>
         </div>
       ))}
-      {(info.blocked.size > 0 || info.off.size > 0 || info.on.size > 0) && (
+      {(info.blocked.size > 0 || info.off.size > 0 || info.on.size > 0 || info.ext.length > 0) && (
         <div className="text-[10px] text-text-dim leading-tight mt-auto">
+          {info.ext.length > 0 && <p title="Pedido de alguien de afuera: si se acepta, deshabilitá la guardia (🚫)">🧑‍⚕️ {info.ext.join(', ')} la pide</p>}
           {info.blocked.size > 0 && <p>⛔ {names(info.blocked)}</p>}
           {info.off.size > 0 && <p>🙅 {names(info.off)}</p>}
           {info.on.size > 0 && <p>🙋 {names(info.on)}</p>}
