@@ -1,0 +1,33 @@
+name: Copia de seguridad
+
+# Todos los lunes (y a mano desde Actions → Copia de seguridad → Run workflow):
+# guarda toda la base cifrada con el secret BACKUP_PASSWORD. Queda 90 días en
+# Actions → la corrida → Artifacts. Se abre desde la app: Admin → Exportar todo
+# → "Abrir una copia de seguridad".
+on:
+  schedule:
+    - cron: '17 9 * * 1' # lunes 06:17 en Argentina
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  backup:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: node scripts/backup.mjs
+        env:
+          FIREBASE_SERVICE_ACCOUNT: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
+          BACKUP_PASSWORD: ${{ secrets.BACKUP_PASSWORD }}
+      - uses: actions/upload-artifact@v4
+        with:
+          name: copia-de-seguridad
+          path: backup/*.gr1b
+          retention-days: 90

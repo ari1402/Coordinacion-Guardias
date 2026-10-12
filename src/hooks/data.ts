@@ -5,6 +5,7 @@ import type {
   CalendarDay,
   CamadaEvent,
   CamadaTask,
+  GuardiaOffer,
   GuardiaRequest,
   InfoNote,
   LinkItem,
@@ -135,5 +136,10 @@ export function useAcks(residentId?: string) {
 /** Notas privadas de una persona (todas sus notas de mes). */
 export function usePrivateNotes(ownerId?: string) {
   const { data } = useCollection<PrivateNote>(ownerId ? 'privateNotes' : '', ownerId ? [where('ownerId', '==', ownerId)] : [], [ownerId]);
+  return data;
+}
+
+export function useOffers() {
+  const { data } = useCollection<GuardiaOffer>('offers', [orderBy('date')]);
   return data;
 }

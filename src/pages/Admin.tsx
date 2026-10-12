@@ -5,6 +5,7 @@ import { Link, useSearchParams } from 'react-router-dom';
 import Badge from '../components/Badge';
 import { Card, Dot, Empty, Modal, MonthNav, PageHeader, Segmented, btnPrimary, btnSecondary, inputBase } from '../components/ui';
 import { downloadAllJson, downloadAllXlsx, fetchAll } from '../lib/exportAll';
+import { openBackup, type OpenedBackup } from '../lib/backupOpen';
 import { db } from '../firebase';
 import { useAcks, useActivity, useCalendarData, useFeedback, usePublications, usePushTokens, useResidents, useResidentsById } from '../hooks/data';
 import { AckAlerts } from '../components/Conformidad';
@@ -12,7 +13,7 @@ import { PrivateNotesEditor } from '../components/PrivateNotes';
 import { useAuthContext } from '../context/AuthContext';
 import { useColors } from '../hooks/useColors';
 import { currentMonthKey } from '../hooks/useMonth';
-import { effectiveMonthConfig, isoWeekday, monthLabel, resolveMonth, shiftMonthKey, shortDateLabel } from '../lib/dates';
+import { diffDays, effectiveMonthConfig, isoWeekday, monthLabel, resolveMonth, shiftMonthKey, shortDateLabel, todayISO } from '../lib/dates';
 import { diffFields, logActivity, type ActivityEntity } from '../lib/activity';
 import { fetchOfficialHolidays } from '../lib/holidays';
 import { TAG_EMOJI } from '../lib/labels';
@@ -349,11 +350,50 @@ function Residentes() {
   const color = useColors(residents);
   if (loading) return <Empty>Cargando…</Empty>;
   return (
+    <div className="flex flex-col gap-4">
+    <QuienEntro residents={residents} />
     <Card title="Residentes" subtitle="El cumpleaños bloquea la guardia de ese día y la del día anterior. Para sumar a alguien nuevo: crear el usuario en Firebase Authentication y su doc en residents/{uid}.">
       <ul className="flex flex-col divide-y divide-border">
         {residents.map((r) => (
           <ResidentRow key={r.id} resident={r} color={color(r.id)} />
         ))}
+      </ul>
+    </Card>
+    </div>
+  );
+}
+
+function QuienEntro({ residents }: { residents: Resident[] }) {
+  const pushTokens = usePushTokens(true);
+  const today = todayISO();
+  const ago = (iso?: string) => {
+    if (!iso) return null;
+    const n = diffDays(iso.slice(0, 10), today);
+    return n === 0 ? 'hoy' : n === 1 ? 'ayer' : `hace ${n} días`;
+  };
+  const list = residents.filter((r) => r.active);
+  const missing = list.filter((r) => !r.lastSeenAt).length;
+  return (
+    <Card
+      title="¿Quién ya entró?"
+      subtitle={`Último ingreso a la app y si tiene las notificaciones activadas. ${missing ? `${missing} todavía no entraron (se registra desde el 13/10).` : 'Entraron todas.'}`}
+    >
+      <ul className="grid gap-2 sm:grid-cols-2">
+        {list.map((r) => {
+          const seen = ago(r.lastSeenAt);
+          const push = pushTokens.some((t) => t.residentId === r.id);
+          return (
+            <li key={r.id} className="flex items-center justify-between gap-2 text-sm rounded-xl bg-surface-2 px-3 py-2">
+              <span className="font-medium">{r.shortName}</span>
+              <span className="flex items-center gap-2">
+                {seen ? <span className="text-text-dim">{seen}</span> : <Badge tone="warning">no entró</Badge>}
+                <span title={push ? 'Notificaciones activadas' : 'Sin notificaciones'} className={push ? '' : 'opacity-30'}>
+                  🔔
+                </span>
+              </span>
+            </li>
+          );
+        })}
       </ul>
     </Card>
   );
@@ -574,10 +614,74 @@ function ExportAllButton() {
             {busy && <p className="text-xs text-text-dim">Preparando…</p>}
             {error && <p className="text-sm text-danger">No se pudo exportar: {error}</p>}
             <p className="text-xs text-text-dim mt-1">Incluye el feedback privado: guardalo en un lugar seguro.</p>
+            <OpenBackup />
           </div>
         </Modal>
       )}
     </>
+  );
+}
+
+/** Abrir una copia automática (Actions → Copia de seguridad → Artifacts) con su contraseña. */
+function OpenBackup() {
+  const [file, setFile] = useState<File | null>(null);
+  const [password, setPassword] = useState('');
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [opened, setOpened] = useState<OpenedBackup | null>(null);
+
+  async function open() {
+    if (!file) return;
+    setBusy(true);
+    setError(null);
+    try {
+      setOpened(await openBackup(await file.arrayBuffer(), password));
+    } catch (e) {
+      setError((e as Error).message);
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  const total = opened ? Object.values(opened.colecciones).reduce((a, l) => a + l.length, 0) : 0;
+  return (
+    <details className="mt-3 rounded-xl border border-border p-3">
+      <summary className="cursor-pointer text-sm font-medium">📂 Abrir una copia de seguridad automática</summary>
+      <p className="text-xs text-text-dim mt-2">
+        Todos los lunes se guarda una copia cifrada en GitHub (Actions → “Copia de seguridad” → Artifacts). Elegí el archivo
+        que bajaste (.zip o .gr1b) y poné la contraseña de la copia.
+      </p>
+      <div className="flex flex-col gap-2 mt-2">
+        <input type="file" accept=".zip,.gr1b" onChange={(e) => setFile(e.target.files?.[0] ?? null)} className="text-sm" />
+        <input
+          type="password"
+          value={password}
+          onChange={(e) => setPassword(e.target.value)}
+          placeholder="Contraseña de la copia"
+          className={inputBase}
+        />
+        <button onClick={open} disabled={busy || !file || !password} className={clsx(btnSecondary, 'self-start')}>
+          {busy ? 'Abriendo…' : 'Abrir'}
+        </button>
+        {error && <p className="text-sm text-danger">{error}</p>}
+        {opened && (
+          <div className="rounded-lg bg-ok-soft px-3 py-2 text-sm flex flex-col gap-2">
+            <span>
+              ✓ Copia del {new Date(opened.exportadoEl).toLocaleString('es-AR', { dateStyle: 'short', timeStyle: 'short' })} · {total}{' '}
+              registros
+            </span>
+            <span className="flex gap-2 flex-wrap">
+              <button onClick={() => downloadAllXlsx(opened.colecciones)} className={btnSecondary}>
+                📊 Bajar Excel
+              </button>
+              <button onClick={() => downloadAllJson(opened.colecciones)} className={btnSecondary}>
+                🗄️ Bajar JSON
+              </button>
+            </span>
+          </div>
+        )}
+      </div>
+    </details>
   );
 }
 

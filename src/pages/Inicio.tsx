@@ -16,6 +16,7 @@ import {
   useCalendarData,
   useEvents,
   useFeedback,
+  useOffers,
   useLinks,
   useRaffles,
   useRequests,
@@ -31,6 +32,7 @@ import { addDaysISO, diffDays, gapsBetween, monthKey, monthLabel, resolveMonth, 
 import { computeAllEquityCounters, resolvePeriod } from '../lib/equity';
 import { TAG_EMOJI, TAG_LABEL } from '../lib/labels';
 import { winners } from '../lib/raffles';
+import { offerOpen } from '../lib/offers';
 import { awayMonths } from '../lib/rotations';
 import type { EquityCounters, ResolvedDay } from '../types';
 import { requesterName } from '../types';
@@ -68,6 +70,7 @@ export default function Inicio() {
   const { rotations } = useRotations();
   const { events } = useEvents();
   const publications = usePublications();
+  const offers = useOffers();
   const acks = useAcks(isAdmin ? undefined : me?.id);
   const today = todayISO();
 
@@ -113,6 +116,7 @@ export default function Inicio() {
     !requests.some((r) => r.residentId === me?.id && r.dates.some((d) => d.startsWith(nextMonth)));
   const toGenerate = isAdmin && dayOfMonth >= 10 && !shifts.some((s) => s.date.startsWith(nextMonth));
   const upcomingEvents = upcomingEventDates(events, today, 4);
+  const openOffers = offers.filter((o) => o.status === 'abierta' && o.fromResidentId !== me?.id && offerOpen(o.date, today));
 
   if (loading || !me) return <p className="text-sm text-text-dim">Cargando…</p>;
 
@@ -145,6 +149,22 @@ export default function Inicio() {
         </Link>
       )}
       <PushBanner residentId={me.id} />
+      {openOffers.length > 0 && (
+        <Link
+          to="/cambios"
+          className="rounded-2xl border border-accent/40 bg-accent-soft px-4 py-3 text-sm flex items-center justify-between gap-3 hover:brightness-95"
+        >
+          <span>
+            🤝 Ofrecen {openOffers.length === 1 ? 'una guardia' : `${openOffers.length} guardias`}:{' '}
+            {openOffers
+              .slice(0, 3)
+              .map((o) => `${shortDateLabel(o.date)} (${byId.get(o.fromResidentId)?.shortName})`)
+              .join(' · ')}
+            {openOffers.length > 3 ? '…' : ''}
+          </span>
+          <span className="text-accent font-medium whitespace-nowrap">Ver →</span>
+        </Link>
+      )}
       {toGenerate && (
         <Link
           to={`/admin/generador?mes=${nextMonth}`}

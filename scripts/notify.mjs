@@ -4,6 +4,7 @@
 //   - Se publicó (o republicó) un mes → a quienes les cambió alguna guardia:
 //     que las pidan en HIBA 2 y confirmen en la app si están OK.
 //   - Alguien dijo que NO está OK con sus guardias → a las admins.
+//   - "Ofrezco mi guardia": oferta nueva → a todas; la tomaron → a quien la ofreció.
 // Cada aviso se manda una sola vez (queda marcado notified = true).
 
 import { cert, initializeApp } from 'firebase-admin/app';
@@ -57,6 +58,41 @@ for (const ack of (await db.collection('acks').where('notified', '==', false).ge
     }
   }
   await ack.ref.update({ notified: true });
+}
+
+// 3. Guardias ofrecidas
+const dayLabel = (iso) => {
+  const wd = ['dom', 'lun', 'mar', 'mié', 'jue', 'vie', 'sáb'][new Date(`${iso}T00:00:00Z`).getUTCDay()];
+  return `${wd} ${Number(iso.slice(8))}/${Number(iso.slice(5, 7))}`;
+};
+for (const off of (await db.collection('offers').where('notifiedOpen', '==', false).get()).docs) {
+  const o = off.data();
+  if (o.status === 'abierta') {
+    const who = residents.get(o.fromResidentId)?.shortName ?? 'Alguien';
+    for (const [id, r] of residents) {
+      if (id === o.fromResidentId || r.active === false) continue;
+      sent += await pushTo(db, id, {
+        title: `🤝 ${who} ofrece su guardia del ${dayLabel(o.date)}`,
+        body: o.note ? `“${o.note}”. Si la querés, tomala en Cambios.` : 'Si la querés, tomala en Cambios.',
+        url: `${APP_URL}#/cambios`,
+        tag: `oferta-${off.id}`,
+      });
+    }
+    console.log(`Oferta ${o.date} de ${who}: avisada`);
+  }
+  await off.ref.update({ notifiedOpen: true });
+}
+for (const off of (await db.collection('offers').where('notifiedTaken', '==', false).where('status', '==', 'tomada').get()).docs) {
+  const o = off.data();
+  const taker = residents.get(o.takenBy)?.shortName ?? 'Alguien';
+  sent += await pushTo(db, o.fromResidentId, {
+    title: `✅ ${taker} tomó tu guardia del ${dayLabel(o.date)}`,
+    body: 'Ya quedó registrado el cambio. Acordate de actualizarlo en HIBA 2.',
+    url: `${APP_URL}#/cambios`,
+    tag: `oferta-tomada-${off.id}`,
+  });
+  console.log(`Oferta ${o.date} tomada por ${taker}: avisado`);
+  await off.ref.update({ notifiedTaken: true });
 }
 
 console.log(`Listo: ${sent} push enviados.`);

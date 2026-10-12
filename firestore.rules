@@ -50,7 +50,7 @@ service cloud.firestore {
     match /residents/{uid} {
       allow read: if isSignedIn();
       allow create, delete: if isAdmin();
-      allow update: if isAdmin() || (isSelf(uid) && onlyChanged(['name', 'shortName', 'email', 'birthday']));
+      allow update: if isAdmin() || (isSelf(uid) && onlyChanged(['name', 'shortName', 'email', 'birthday', 'lastSeenAt']));
     }
 
     match /monthConfigs/{id} {
@@ -103,9 +103,64 @@ service cloud.firestore {
       allow delete: if isAdmin();
     }
 
+    // Último momento para ofrecer/tomar una guardia: el día 20 del mes anterior
+    // a la guardia, a las 24 h de Argentina (= día 21, 03:00 UTC).
+    function offerDeadline(dateStr) {
+      let p = dateStr.split('-');
+      let y = int(p[0]);
+      let m = int(p[1]);
+      return (m == 1 ? timestamp.date(y - 1, 12, 21) : timestamp.date(y, m - 1, 21)) + duration.value(3, 'h');
+    }
+
+    function shiftPath(shiftId) {
+      return /databases/$(database)/documents/shifts/$(shiftId);
+    }
+
+    // Un cambio ya confirmado solo se puede crear tomando una guardia ofrecida.
+    function swapFromOffer() {
+      let o = getAfter(/databases/$(database)/documents/offers/$(request.resource.data.offerId)).data;
+      return o.status == 'tomada'
+        && o.takenBy == request.auth.uid
+        && request.resource.data.toResidentId == request.auth.uid
+        && request.resource.data.fromResidentId == o.fromResidentId
+        && request.resource.data.shiftId == o.shiftId
+        && get(shiftPath(o.shiftId)).data.actualResidentId == o.fromResidentId;
+    }
+
+    // "Ofrezco mi guardia": cualquiera ofrece una guardia suya; otra la toma
+    // (en el mismo batch que crea el cambio y pasa la guardia). Hasta el día 20.
+    match /offers/{id} {
+      allow read: if isResident();
+      allow create: if isResident()
+        && request.resource.data.fromResidentId == request.auth.uid
+        && request.resource.data.status == 'abierta'
+        && request.resource.data.notifiedOpen == false
+        && request.resource.data.notifiedTaken == false
+        && request.time < offerDeadline(request.resource.data.date)
+        && get(shiftPath(request.resource.data.shiftId)).data.actualResidentId == request.auth.uid
+        && get(shiftPath(request.resource.data.shiftId)).data.date == request.resource.data.date
+        && request.resource.data.keys().hasOnly(['id', 'shiftId', 'date', 'fromResidentId', 'note', 'generatesDebt', 'status', 'createdAt', 'notifiedOpen', 'notifiedTaken']);
+      allow update: if isResident() && resource.data.status == 'abierta' && (
+        // tomarla
+        (request.resource.data.status == 'tomada'
+          && request.resource.data.takenBy == request.auth.uid
+          && resource.data.fromResidentId != request.auth.uid
+          && request.time < offerDeadline(resource.data.date)
+          && onlyChanged(['status', 'takenBy', 'takenAt', 'swapId'])
+          && getAfter(/databases/$(database)/documents/swaps/$(request.resource.data.swapId)).data.offerId == id)
+        // retirarla
+        || (request.resource.data.status == 'cancelada'
+          && (isSelf(resource.data.fromResidentId) || isAdmin())
+          && onlyChanged(['status', 'cancelledAt', 'cancelledBy']))
+      );
+      allow delete: if isAdmin();
+    }
+
     match /swaps/{id} {
       allow read: if isResident();
-      allow create: if isResident() && createdByMe() && request.resource.data.status == 'solicitado';
+      allow create: if isResident() && createdByMe()
+        && (request.resource.data.status == 'solicitado'
+          || (request.resource.data.status == 'confirmado' && 'offerId' in request.resource.data && swapFromOffer()));
       allow update: if isAdmin() || (
         (isSelf(resource.data.toResidentId) || isSelf(resource.data.fromResidentId))
         && onlyChanged(['status', 'debtSettled'])

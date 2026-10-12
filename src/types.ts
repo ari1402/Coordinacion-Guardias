@@ -14,6 +14,8 @@ export interface Resident {
   active: boolean;
   /** "MM-DD". No se asigna guardia ese día ni el anterior. */
   birthday?: string;
+  /** Última vez que abrió la app (se actualiza como mucho una vez por día). */
+  lastSeenAt?: string;
 }
 
 export type Weekday = 0 | 1 | 2 | 3 | 4 | 5 | 6; // 0 = lunes ... 6 = domingo
@@ -252,8 +254,37 @@ export interface Swap {
   status: SwapStatus;
   generatesDebt: boolean;
   debtSettled?: boolean;
+  /** Si salió de una guardia ofrecida ("Ofrezco mi guardia"). */
+  offerId?: string;
   createdBy: string;
   createdAt: string;
+}
+
+export type OfferStatus = 'abierta' | 'tomada' | 'cancelada';
+
+/**
+ * "Ofrezco mi guardia": alguien publica una guardia que quiere ceder y otra la
+ * toma con un toque (queda registrado como cambio). Se puede hasta el día 20
+ * del mes anterior a la guardia (después hay que tenerlas cargadas en HIBA 2).
+ */
+export interface GuardiaOffer {
+  id: string;
+  shiftId: string;
+  date: string;
+  fromResidentId: string;
+  note?: string;
+  /** Si quien la cede quiere que se la devuelvan (queda como deuda). */
+  generatesDebt: boolean;
+  status: OfferStatus;
+  takenBy?: string;
+  takenAt?: string;
+  swapId?: string;
+  cancelledAt?: string;
+  cancelledBy?: string;
+  createdAt: string;
+  /** El script de notificaciones ya avisó (al grupo / a quien la ofreció). */
+  notifiedOpen: boolean;
+  notifiedTaken: boolean;
 }
 
 export interface LinkItem {

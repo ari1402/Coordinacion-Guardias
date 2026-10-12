@@ -3,7 +3,9 @@ import { signOut } from 'firebase/auth';
 import { useEffect, useState } from 'react';
 import { NavLink, Outlet, useLocation } from 'react-router-dom';
 import { useAuthContext } from '../context/AuthContext';
-import { auth } from '../firebase';
+import { doc, updateDoc } from 'firebase/firestore';
+import { auth, db } from '../firebase';
+import { todayISO } from '../lib/dates';
 import { disablePush, refreshPush } from '../lib/push';
 
 type NavItem = { to: string; label: string; icon: string; end?: boolean; short?: string; admin?: boolean };
@@ -36,9 +38,15 @@ function navCls(isActive: boolean, admin = false) {
 export default function Layout() {
   const { resident, isAdmin } = useAuthContext();
   const residentId = resident?.id;
+  const lastSeen = resident?.lastSeenAt;
   useEffect(() => {
     if (residentId) refreshPush(residentId);
   }, [residentId]);
+  // Último ingreso (para que las admins vean quién todavía no entró): una vez por día.
+  useEffect(() => {
+    if (!residentId || (lastSeen && lastSeen.slice(0, 10) === todayISO())) return;
+    updateDoc(doc(db, 'residents', residentId), { lastSeenAt: new Date().toISOString() }).catch(() => {});
+  }, [residentId, lastSeen]);
 
   // Al salir se borra el token: el dispositivo deja de recibir avisos a su nombre.
   const salir = () => disablePush().finally(() => signOut(auth));
