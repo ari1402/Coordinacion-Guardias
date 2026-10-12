@@ -34,7 +34,7 @@ const RULE_LABELS: Record<string, string> = {
   maxPerPerson: 'Tope por persona',
   avoidSameWeekday: 'No repetir día de semana',
   avoidDoubleSatPref: 'Máx. un sáb/preferiado',
-  sabadoComunConJueves: 'Sábado común → jueves',
+  sabadoComunConJueves: 'Sábado → jueves feliz',
   juevesLibraFinde: 'Jueves libera el finde',
   notes: 'Acuerdos del mes',
 };
@@ -179,7 +179,7 @@ function RulesForm({ month, configs }: { month: string; configs: MonthConfig[] }
           {num('maxPerPerson', 'Tope por persona', '0 = sin tope')}
           {toggle('avoidSameWeekday', 'Evitar repetir el mismo día de la semana')}
           {toggle('avoidDoubleSatPref', 'Máximo un sábado/preferiado por persona')}
-          {toggle('sabadoComunConJueves', 'Quien tenga sábado común, que tenga un jueves')}
+          {toggle('sabadoComunConJueves', 'Quien tenga un sábado, que tenga un jueves feliz')}
           {toggle('juevesLibraFinde', 'Guardia de jueves → ese finde libre hasta el primer día hábil')}
         </div>
         <label className="flex flex-col gap-1 text-sm">

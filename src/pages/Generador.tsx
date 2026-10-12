@@ -370,7 +370,7 @@ export default function Generador() {
               <p className="text-sm bg-accent-soft rounded-lg px-3 py-2 mb-3">
                 🌟 Findes XL del mes: <b>{xlRanking.days}</b>. Van por turnos: primero quien todavía no tuvo (o tuvo
                 menos); entre ellas, quien termina el mes con más carga (guardias, sábados/preferiados, feriados, findes,
-                noches sin dormir). Los jueves felices, a quien carga más sábados/preferiados. Los pedidos mandan.
+                noches sin dormir). Los jueves felices, a quien tiene sábado en el mes. Los pedidos mandan.
                 Finde XL, les toca a:{' '}
                 {xlRanking.order.map((x, i) => (
                   <span key={x.residentId}>
@@ -603,7 +603,7 @@ function RulesCard({
           {[
             r.avoidSameWeekday && 'no repetir día de semana',
             r.avoidDoubleSatPref && 'máx. 1 sáb/preferiado',
-            r.sabadoComunConJueves && 'sábado común → con jueves',
+            r.sabadoComunConJueves && 'sábado → jueves feliz',
             r.juevesLibraFinde && 'jueves → finde libre hasta el día hábil',
             'sin guardia el cumple ni el día anterior',
           ]

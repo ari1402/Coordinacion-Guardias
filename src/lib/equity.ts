@@ -28,6 +28,8 @@ export function computeEquityCounters(
     jueves: 0,
     viernes: 0,
     sabados: 0,
+    sabadosFindeLargo: 0,
+    sabadosSinCompensar: 0,
     domingos: 0,
     preferiados: 0,
     sabadosYPreferiados: 0,
@@ -52,6 +54,7 @@ export function computeEquityCounters(
     if (day.weekday === 3) c.jueves++;
     if (day.weekday === 4) c.viernes++;
     if (day.weekday === 5) c.sabados++;
+    if (hasTag(day, 'sabado_finde_largo')) c.sabadosFindeLargo++;
     if (day.weekday === 6) c.domingos++;
     if (day.weekday >= 4) c.findeTotal++;
     if (hasTag(day, 'preferiado')) c.preferiados++;
@@ -60,6 +63,18 @@ export function computeEquityCounters(
     if (hasTag(day, 'jueves_feliz')) c.juevesFelices++;
   }
   c.sabadosYPreferiados = c.sabados + c.preferiados;
+
+  // El sábado se compensa con un jueves feliz (o finde XL) del mismo mes.
+  const perMonth = new Map<string, { sab: number; jue: number }>();
+  for (const s of mine) {
+    const day = dayById.get(s.date);
+    if (!day) continue;
+    const m = perMonth.get(monthKey(s.date)) ?? { sab: 0, jue: 0 };
+    if (day.weekday === 5) m.sab++;
+    if (hasTag(day, 'jueves_feliz') || hasTag(day, 'finde_xl')) m.jue++;
+    perMonth.set(monthKey(s.date), m);
+  }
+  for (const m of perMonth.values()) c.sabadosSinCompensar += Math.max(0, m.sab - m.jue);
 
   for (const day of days) {
     if (day.weekday !== 5) continue; // un finde se evalúa una vez, en su sábado

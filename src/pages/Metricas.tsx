@@ -15,6 +15,8 @@ const COLUMNS: { key: keyof EquityCounters; label: string; sense: Sense; title: 
   { key: 'lunAMie', label: 'Lun–Mié', sense: 'neutral', title: 'Guardias de lunes a miércoles' },
   { key: 'viernes', label: 'Vie', sense: 'burden', title: 'Viernes' },
   { key: 'sabados', label: 'Sáb', sense: 'burden', title: 'Sábados' },
+  { key: 'sabadosFindeLargo', label: 'Sáb largo', sense: 'burden', title: 'Sábados de finde largo (pesan más que uno común)' },
+  { key: 'sabadosSinCompensar', label: 'Sáb sin jueves', sense: 'burden', title: 'Sábados que en su mes no tuvieron jueves feliz ni finde XL que los compense' },
   { key: 'domingos', label: 'Dom', sense: 'burden', title: 'Domingos' },
   { key: 'sabadosYPreferiados', label: 'Sáb+Pref', sense: 'burden', title: 'Sábados + preferiados (cuentan igual)' },
   { key: 'feriados', label: 'Feriados', sense: 'burden', title: 'Guardias en feriado' },

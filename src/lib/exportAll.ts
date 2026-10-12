@@ -77,7 +77,7 @@ function summarySheet(data: AllData): Sheet {
     awayMonths(data.rotations as unknown as Rotation[]),
   );
   const header = [
-    'Residente', 'Guardias', 'Lun–Mié', 'Jue', 'Vie', 'Sáb', 'Dom', 'Sáb + pref.', 'Feriados',
+    'Residente', 'Guardias', 'Lun–Mié', 'Jue', 'Vie', 'Sáb', 'Sáb finde largo', 'Sáb sin jueves', 'Dom', 'Sáb + pref.', 'Feriados',
     'Findes XL', 'Jueves felices', 'Findes libres', 'Sin dormir', 'Separación mín.', 'Separación prom.',
   ];
   return {
@@ -89,13 +89,13 @@ function summarySheet(data: AllData): Sheet {
         const c = counters[r.id];
         return [
           { v: r.name, s: 'bold' },
-          c.totalGuardias, c.lunAMie, c.jueves, c.viernes, c.sabados, c.domingos, c.sabadosYPreferiados, c.feriados,
+          c.totalGuardias, c.lunAMie, c.jueves, c.viernes, c.sabados, c.sabadosFindeLargo, c.sabadosSinCompensar, c.domingos, c.sabadosYPreferiados, c.feriados,
           c.findesXL, c.juevesFelices, c.findesLibresA, c.sinDormir, c.distanciaMinima ?? '—',
           c.distanciaPromedio === null ? '—' : Math.round(c.distanciaPromedio * 10) / 10,
         ];
       }),
     ],
-    cols: [22, ...Array(14).fill(10)],
+    cols: [22, ...Array(16).fill(10)],
     merges: ['A1:H1'],
     freezeRows: 2,
     heights: { 1: 30 },

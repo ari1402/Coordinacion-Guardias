@@ -4,6 +4,7 @@ import { DEFAULT_RULES, addDaysISO, effectiveMonthConfig, hasTag, protectingThur
 import { evaluateDraft, generateOptions, priorFromCounters, slotKey, xlPriority } from './generator';
 import { secureShuffle } from './random';
 import { upcomingBirthdays } from './birthdays';
+import { computeEquityCounters } from './equity';
 
 const residents: Resident[] = [
   ['alba', 'Alba', '01-01'],
@@ -158,21 +159,16 @@ describe('generador', () => {
     expect([at('2026-11-05'), at('2026-11-19')]).toEqual(['costa', 'gil']);
   });
 
-  it('los jueves felices van primero a quien carga más sábados/preferiados', () => {
-    const felices = nov.filter((d) => hasTag(d, 'jueves_feliz')).map((d) => d.date);
-    const prior = Object.fromEntries(
-      residents.map((r) => [
-        r.id,
-        { ...priorFromCounters(undefined), total: 8, sabPref: 2, feriado: 1, findeTotal: 3, xl: 1, jueves: 1, lastShiftDate: '2026-10-20' },
-      ]),
-    );
-    prior.espina = { ...prior.espina, sabPref: 4 };
-    let got = 0;
-    for (const seed of [31, 32, 33]) {
-      const [opt] = generateOptions({ ...base, prior }, { seed, profiles: ['equidad'] });
-      if (opt.slots.some((s) => felices.includes(s.date) && s.residentId === 'espina')) got++;
+  it('quien tiene sábado en el mes tiene un jueves feliz (o finde XL)', () => {
+    const sats = nov.filter((d) => d.weekday === 5);
+    expect(sats.filter((d) => hasTag(d, 'sabado_finde_largo')).map((d) => d.date)).toEqual(['2026-11-07', '2026-11-21']);
+    for (const seed of [41, 42, 43]) {
+      const [opt] = generateOptions(base, { seed, profiles: ['equidad'] });
+      const at = (d: string) => opt.slots.find((s) => s.date === d)?.residentId;
+      const good = new Set(nov.filter((d) => hasTag(d, 'jueves_feliz') || hasTag(d, 'finde_xl')).map((d) => at(d.date)));
+      for (const sat of sats) expect(good.has(at(sat.date))).toBe(true);
+      expect(opt.evaluation.issues.filter((i) => i.code === 'sabado_sin_jueves')).toHaveLength(0);
     }
-    expect(got).toBe(3);
   });
 
   it('el finde XL va por turnos: primero quien todavía no tuvo, aunque otra tenga más carga', () => {
@@ -313,5 +309,17 @@ describe('utilidades', () => {
     const next = upcomingBirthdays(residents, '2026-10-12', 3);
     expect(next.map((n) => n.resident.id)).toEqual(['espina', 'funes', 'alba']);
     expect(next[0].date).toBe('2027-01-11');
+  });
+});
+
+describe('métricas de sábados', () => {
+  it('distingue sábado de finde largo y cuenta los sábados sin jueves que los compense', () => {
+    const nov = resolveMonth('2026-11', holidays, configs);
+    const shift = (date: string) => ({ id: `${date}_0`, date, slotIndex: 0, assignedResidentId: 'x', actualResidentId: 'x', status: 'programada' as const, createdAt: '' });
+    // 7/11 = sábado de finde largo (lunes 9 feriado); 14/11 = sábado común; 12/11 = jueves feliz.
+    const c = computeEquityCounters('x', ['2026-11-07', '2026-11-12', '2026-11-14'].map(shift), nov);
+    expect(c.sabados).toBe(2);
+    expect(c.sabadosFindeLargo).toBe(1);
+    expect(c.sabadosSinCompensar).toBe(1);
   });
 });

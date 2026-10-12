@@ -1,6 +1,7 @@
 import type { CamadaEvent, Resident, ResolvedDay, Rotation, Shift } from '../types';
 import { WEEKDAY_LABELS, WEEKDAY_SHORT } from '../types';
 import { buildBreakdown } from './breakdown';
+import { priorFromCounters } from './generator';
 import { addDaysISO, hasTag, monthLabel, shortDateLabel } from './dates';
 import { TAG_LABEL } from './labels';
 import type { Cell, Sheet } from './xlsx';
@@ -79,6 +80,7 @@ export function monthSheets({ monthKey, days, shifts, residents, rotations = [],
       people.map((r) => [
         r.id,
         {
+          ...priorFromCounters(undefined),
           total: before.filter((s) => s.actualResidentId === r.id).length,
           sabPref: 0,
           feriado: 0,

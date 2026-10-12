@@ -55,7 +55,7 @@ export interface MonthRules {
   avoidSameWeekday: boolean;
   /** Evitar sábado + preferiado (o dos de esa categoría) a la misma persona en el mes. */
   avoidDoubleSatPref: boolean;
-  /** Quien tenga sábado común, que en lo posible tenga también un jueves. */
+  /** Quien tenga un sábado en el mes, que tenga también un jueves feliz (o finde XL). */
   sabadoComunConJueves: boolean;
   /**
    * Quien hace guardia un jueves tiene libre el posguardia y todo ese finde:
@@ -395,6 +395,10 @@ export interface EquityCounters {
   jueves: number;
   viernes: number;
   sabados: number;
+  /** Sábados de finde largo (vie, sáb, dom o lun feriado): pesan más que uno común. */
+  sabadosFindeLargo: number;
+  /** Sábados que en su mes no tuvieron jueves feliz ni finde XL que los compense. */
+  sabadosSinCompensar: number;
   domingos: number;
   preferiados: number;
   sabadosYPreferiados: number;
