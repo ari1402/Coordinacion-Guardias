@@ -8,6 +8,7 @@ import { downloadAllJson, downloadAllXlsx, fetchAll } from '../lib/exportAll';
 import { db } from '../firebase';
 import { useAcks, useActivity, useCalendarData, useFeedback, usePublications, usePushTokens, useResidents, useResidentsById } from '../hooks/data';
 import { AckAlerts } from '../components/Conformidad';
+import { PrivateNotesEditor } from '../components/PrivateNotes';
 import { useAuthContext } from '../context/AuthContext';
 import { useColors } from '../hooks/useColors';
 import { currentMonthKey } from '../hooks/useMonth';
@@ -182,8 +183,8 @@ function RulesForm({ month, configs }: { month: string; configs: MonthConfig[] }
           {toggle('juevesLibraFinde', 'Guardia de jueves → ese finde libre hasta el primer día hábil')}
         </div>
         <label className="flex flex-col gap-1 text-sm">
-          Reglas y acuerdos internos del mes
-          <span className="text-xs text-text-dim">Los ve todo el grupo en el calendario.</span>
+          Acuerdos del mes para el grupo
+          <span className="text-xs text-text-dim">Los ve todo el grupo en el calendario. Para algo solo tuyo, usá las notas privadas de abajo.</span>
           <textarea value={notes} onChange={(e) => setNotes(e.target.value)} rows={4} className={clsx(inputCls, 'resize-y')} placeholder="Ej.: martes 3 sin R1; Gil compensa sáb/preferiado de octubre…" />
         </label>
         <div className="flex gap-2 items-center">
@@ -203,6 +204,9 @@ function RulesForm({ month, configs }: { month: string; configs: MonthConfig[] }
             </button>
           )}
           {saved && <span className="text-sm text-ok">Guardado ✓</span>}
+        </div>
+        <div className="border-t border-border pt-4">
+          <PrivateNotesEditor month={month} />
         </div>
       </div>
     </Card>

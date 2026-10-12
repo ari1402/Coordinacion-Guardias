@@ -179,6 +179,15 @@ service cloud.firestore {
       allow delete: if isAdmin();
     }
 
+    // Notas del mes privadas: solo las lee y escribe quien las crea (ni las otras admins).
+    match /privateNotes/{id} {
+      allow read, delete: if isSignedIn() && resource.data.ownerId == request.auth.uid;
+      allow create, update: if isResident()
+        && id == request.resource.data.month + '_' + request.auth.uid
+        && request.resource.data.ownerId == request.auth.uid
+        && request.resource.data.keys().hasOnly(['id', 'month', 'ownerId', 'text', 'updatedAt']);
+    }
+
     // Tokens de notificaciones push (doc id = token FCM del dispositivo). Cada
     // una registra solo los suyos; un token es imposible de adivinar, así que
     // se permite reasignarlo si en ese dispositivo entra otra persona. Las

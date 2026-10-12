@@ -295,6 +295,15 @@ export interface InfoNote {
   updatedAt?: string;
 }
 
+/** Notas del mes que solo ve quien las escribe. Doc id = "YYYY-MM_uid". */
+export interface PrivateNote {
+  id: string;
+  month: string;
+  ownerId: string;
+  text: string;
+  updatedAt: string;
+}
+
 /** Carril (rotación) de cada R1 por mes. Doc id = residentId. */
 export interface Rotation {
   id: string;

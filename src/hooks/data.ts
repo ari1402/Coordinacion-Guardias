@@ -10,6 +10,7 @@ import type {
   LinkItem,
   MonthAck,
   MonthConfig,
+  PrivateNote,
   Publication,
   Raffle,
   Resident,
@@ -128,5 +129,11 @@ export function usePublications() {
 export function useAcks(residentId?: string) {
   const constraints = residentId ? [where('residentId', '==', residentId)] : [];
   const { data } = useCollection<MonthAck>('acks', constraints, [residentId]);
+  return data;
+}
+
+/** Notas privadas de una persona (todas sus notas de mes). */
+export function usePrivateNotes(ownerId?: string) {
+  const { data } = useCollection<PrivateNote>(ownerId ? 'privateNotes' : '', ownerId ? [where('ownerId', '==', ownerId)] : [], [ownerId]);
   return data;
 }

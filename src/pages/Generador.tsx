@@ -15,6 +15,7 @@ import {
   useRaffles,
   useRequests,
   useResidents,
+  usePrivateNotes,
   useResidentsById,
   useRotations,
 } from '../hooks/data';
@@ -544,6 +545,8 @@ function RulesCard({
   cfg: ReturnType<typeof effectiveMonthConfig>;
   days: ResolvedDay[];
 }) {
+  const { resident: me } = useAuthContext();
+  const privateNote = usePrivateNotes(me?.id).find((n) => n.month === monthKey)?.text;
   const r = cfg.rules;
   const holidays = days.filter((d) => d.isHoliday);
   const special = days.filter((d) => d.notes || d.tags.includes('sin_cobertura'));
@@ -590,6 +593,7 @@ function RulesCard({
           </p>
         )}
         {cfg.notes && <p className="whitespace-pre-wrap bg-surface-2 rounded-lg p-2 text-xs">{cfg.notes}</p>}
+        {privateNote && <p className="whitespace-pre-wrap bg-accent-soft rounded-lg p-2 text-xs">🔒 {privateNote}</p>}
       </div>
     </Card>
   );

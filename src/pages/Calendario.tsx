@@ -25,6 +25,7 @@ import { logActivity } from '../lib/activity';
 import { DEFAULT_DISABLED_NOTE, disableSlot, enableSlot } from '../lib/disableSlot';
 import { buildSlots } from '../lib/generator';
 import ExportMonthModal from '../components/ExportMonthModal';
+import { PrivateNotesCard } from '../components/PrivateNotes';
 import { LEGEND, TAG_EMOJI, TAG_LABEL, dayBgClass } from '../lib/labels';
 import type { CamadaEvent, GuardiaRequest, Resident, ResolvedDay, Shift, ShiftStatus } from '../types';
 import { WEEKDAY_SHORT, requestIntent, requesterName, requestShiftDates } from '../types';
@@ -82,10 +83,11 @@ export default function Calendario() {
       />
 
       {cfg.notes && (
-        <Card title="📌 Reglas y acuerdos del mes" className="mb-4">
+        <Card title="📌 Acuerdos del mes" className="mb-4">
           <p className="text-sm whitespace-pre-wrap">{cfg.notes}</p>
         </Card>
       )}
+      <PrivateNotesCard month={monthKey} className="mb-4" />
 
       {lc || ls ? (
         <p className="text-sm text-text-dim">Cargando…</p>
