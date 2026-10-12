@@ -36,8 +36,7 @@ interface Weights {
   offSoft: number;
   onStrong: number;
   onSoft: number;
-  /** Premio por darle el finde XL a quien viene con más carga y el jueves feliz a quien tiene más sábados. */
-  xlComp: number;
+  /** Premio por darle el jueves feliz a quien arrastra sábados sin compensar. */
   felizComp: number;
 }
 
@@ -60,7 +59,6 @@ const BASE: Weights = {
   offSoft: 80,
   onStrong: 400,
   onSoft: 80,
-  xlComp: 40,
   felizComp: 30,
 };
 
@@ -68,7 +66,7 @@ export const PROFILES: Record<ProfileId, { label: string; description: string; w
   equidad: {
     label: 'Máxima equidad',
     description: 'Prioriza repartir parejo con el acumulado: totales, sábados/preferiados, feriados y findes.',
-    weights: { ...BASE, total: 80, sabPref: 60, largo: 60, feriado: 40, xl: 30, findeTotal: 20, xlComp: 60, felizComp: 40, satThu: 200 },
+    weights: { ...BASE, total: 80, sabPref: 60, largo: 60, feriado: 40, xl: 30, findeTotal: 20, felizComp: 40, satThu: 200 },
   },
   pedidos: {
     label: 'Máximo respeto de pedidos',
@@ -117,41 +115,6 @@ export function priorFromCounters(c: EquityCounters | undefined, lastShiftDate?:
     sabSinComp: c?.sabadosSinCompensar ?? 0,
     lastShiftDate,
   };
-}
-
-/**
- * Cuánta carga trae cada una respecto del promedio del grupo. Se usa para
- * decidir a quién le corresponde un beneficio (finde XL, jueves feliz):
- * primero a quien viene con más guardias, sábados/preferiados, feriados,
- * findes y noches sin dormir. Los pedidos siguen pesando más.
- */
-export const BURDEN_WEIGHTS = { total: 1, sabPref: 1.5, largo: 1, feriado: 1, findeTotal: 0.5, sinDormir: 0.5 } as const;
-
-type BurdenCounts = { total: number; sabPref: number; largo: number; feriado: number; findeTotal: number; sinDormir: number };
-
-export function burdenScores(counts: BurdenCounts[]): number[] {
-  const n = counts.length || 1;
-  const keys = Object.keys(BURDEN_WEIGHTS) as (keyof typeof BURDEN_WEIGHTS)[];
-  const mean = Object.fromEntries(keys.map((k) => [k, counts.reduce((a, c) => a + c[k], 0) / n])) as Record<(typeof keys)[number], number>;
-  // Con tope, así el premio (60 × 2,5) queda bien por debajo de un pedido fuerte (400).
-  return counts.map((c) => Math.max(-2.5, Math.min(2.5, keys.reduce((a, k) => a + BURDEN_WEIGHTS[k] * (c[k] - mean[k]), 0))));
-}
-
-/** Orden de prioridad para el próximo finde XL según el acumulado previo (para mostrar). */
-export function xlPriority(prior: Record<string, PriorCounts>, ids: string[]) {
-  const counts = ids.map((id) => prior[id] ?? priorFromCounters(undefined));
-  const burden = burdenScores(counts.map((c) => ({ ...c, sinDormir: c.sinDormir ?? 0 })));
-  const meanXl = counts.reduce((a, c) => a + c.xl, 0) / (counts.length || 1);
-  return ids
-    .map((id, i) => ({
-      residentId: id,
-      burden: burden[i],
-      xl: counts[i].xl,
-      // mismo balance que usa el costo: más carga suma, más findes XL ya hechos resta
-      score: BASE.xlComp * burden[i] - 2 * BASE.xl * (counts[i].xl - meanXl),
-    }))
-    // Primero quienes tuvieron menos findes XL (turnos); entre ellas, más carga.
-    .sort((a, b) => a.xl - b.xl || b.score - a.score);
 }
 
 export interface ScheduleInput {
@@ -310,6 +273,8 @@ interface Problem {
   xlPool: (number[] | null)[];
   /** Por slot: quiénes lo pidieron (quiero esta guardia / posguardia). */
   onBySlot: Set<number>[];
+  /** Preferencia al azar para el finde XL entre quienes empatan en el turno. */
+  xlLottery?: number[];
 }
 
 function compile(input: ScheduleInput): Problem {
@@ -623,27 +588,16 @@ function run(p: Problem, assign: Int16Array, W: Weights, out: Collector | null):
     cost += W[cat] * v;
   }
 
-  // Finde XL para quien viene con más carga. La carga se mide sin contar
-  // esos mismos jueves, así no conviene sumarle guardias a nadie para
-  // "justificarle" el beneficio.
-  const burden = burdenScores(
-    month.map((m, r) => ({
-      total: p.prior[r].total + m.total - m.xl - m.jueves,
-      sabPref: p.prior[r].sabPref + m.sabPref,
-      largo: p.prior[r].largo + m.largo,
-      feriado: p.prior[r].feriado + m.feriado,
-      findeTotal: p.prior[r].findeTotal + m.findeTotal,
-      sinDormir: p.prior[r].sinDormir ?? 0,
-    })),
-  );
   // Los jueves felices que sobren (además de compensar los sábados del mes,
   // ver abajo) van primero a quien arrastra sábados sin compensar de antes.
   const owed = p.prior.map((x) => x.sabSinComp ?? 0);
   const owedMean = owed.reduce((a, b) => a + b, 0) / (nR || 1);
   for (let r = 0; r < nR; r++) {
     const satDebt = Math.max(-2.5, Math.min(2.5, owed[r] - owedMean));
-    cost -= W.xlComp * month[r].xl * burden[r] + W.felizComp * month[r].jueves * satDebt;
+    cost -= W.felizComp * month[r].jueves * satDebt;
   }
+  // Finde XL: entre quienes les toca el turno, al azar (sorteo propio de cada corrida).
+  if (p.xlLottery) for (let r = 0; r < nR; r++) cost -= p.xlLottery[r] * month[r].xl;
 
   for (let r = 0; r < nR; r++) {
     if (p.rules.avoidSameWeekday) {
@@ -910,6 +864,8 @@ export function generateOptions(input: ScheduleInput, opts: GenerateOptions = {}
 
   return profiles.map((profile) => {
     const W = PROFILES[profile].weights;
+    // Cada opción sortea su orden para el finde XL (solo desempata dentro del turno).
+    p.xlLottery = p.resIds.map(() => rng() * 120);
     let best: Int16Array | null = null;
     let bestCost = Infinity;
     for (let k = 0; k < restarts; k++) {

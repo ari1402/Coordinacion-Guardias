@@ -7,6 +7,7 @@ import Camada from './pages/Camada';
 import CambiarPassword from './pages/CambiarPassword';
 import Cambios from './pages/Cambios';
 import Feedback from './pages/Feedback';
+import Guia from './pages/Guia';
 import Generador from './pages/Generador';
 import Inicio from './pages/Inicio';
 import Login from './pages/Login';
@@ -50,6 +51,7 @@ export default function App() {
         <Route path="/sorteos" element={<Sorteos />} />
         <Route path="/camada" element={<Camada />} />
         <Route path="/cuenta" element={<CambiarPassword />} />
+        <Route path="/guia" element={<Guia />} />
         {isAdmin && <Route path="/admin" element={<Admin />} />}
         {isAdmin && <Route path="/admin/generador" element={<Generador />} />}
         <Route path="/grupo" element={<Navigate to="/metricas" replace />} />

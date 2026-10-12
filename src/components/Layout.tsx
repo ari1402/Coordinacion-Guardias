@@ -48,7 +48,7 @@ export default function Layout() {
   const [more, setMore] = useState(false);
   const { pathname } = useLocation();
   const matches = (i: NavItem) => (i.end ? pathname === i.to : pathname === i.to || pathname.startsWith(`${i.to}/`));
-  const inMore = moreItems.some(matches) || pathname === '/cuenta';
+  const inMore = moreItems.some(matches) || pathname === '/cuenta' || pathname === '/guia';
 
   return (
     <div className="min-h-screen bg-bg text-text md:flex">
@@ -67,6 +67,9 @@ export default function Layout() {
         </nav>
         <div className="mt-auto pt-4 border-t border-border flex flex-col gap-1 text-sm">
           <span className="px-3 font-medium">{resident?.name}</span>
+          <NavLink to="/guia" className={({ isActive }) => navCls(isActive)}>
+            <span>❓</span>Guía
+          </NavLink>
           <NavLink to="/cuenta" className={({ isActive }) => navCls(isActive)}>
             <span>🔑</span>Mi cuenta
           </NavLink>
@@ -143,6 +146,10 @@ export default function Layout() {
                   {i.label}
                 </NavLink>
               ))}
+              <NavLink to="/guia" onClick={() => setMore(false)} className="flex flex-col items-center gap-1 rounded-xl py-3 text-sm bg-surface-2">
+                <span className="text-2xl leading-none">❓</span>
+                Guía
+              </NavLink>
               <NavLink to="/cuenta" onClick={() => setMore(false)} className="flex flex-col items-center gap-1 rounded-xl py-3 text-sm bg-surface-2">
                 <span className="text-2xl leading-none">🔑</span>
                 Mi cuenta

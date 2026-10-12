@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import type { CalendarDay, GuardiaRequest, MonthConfig, Resident } from '../types';
 import { DEFAULT_RULES, addDaysISO, effectiveMonthConfig, hasTag, protectingThursday, resolveMonth } from './dates';
-import { evaluateDraft, generateOptions, priorFromCounters, slotKey, xlPriority } from './generator';
+import { evaluateDraft, generateOptions, priorFromCounters, slotKey } from './generator';
 import { secureShuffle } from './random';
 import { upcomingBirthdays } from './birthdays';
 import { computeEquityCounters } from './equity';
@@ -128,37 +128,6 @@ describe('generador', () => {
     expect(opt.evaluation.summary.uncovered).toBe(0);
   });
 
-  it('el finde XL va primero a quien viene con más carga, salvo que otra lo pida', () => {
-    const xlDays = nov.filter((d) => hasTag(d, 'finde_xl')).map((d) => d.date);
-    expect(xlDays).toEqual(['2026-11-05', '2026-11-19']);
-    // Todas parejas salvo Funes: más guardias, sábados/preferiados y feriados.
-    const prior = Object.fromEntries(
-      residents.map((r) => [
-        r.id,
-        { ...priorFromCounters(undefined), total: 8, sabPref: 2, feriado: 1, findeTotal: 3, xl: 1, jueves: 1, lastShiftDate: '2026-10-20' },
-      ]),
-    );
-    prior.funes = { ...prior.funes, total: 10, sabPref: 4, feriado: 2, findeTotal: 5 };
-    expect(xlPriority(prior, residents.map((r) => r.id))[0].residentId).toBe('funes');
-
-    let got = 0;
-    for (const seed of [11, 12, 13]) {
-      const [opt] = generateOptions({ ...base, prior }, { seed, profiles: ['equidad'] });
-      if (opt.slots.some((s) => xlDays.includes(s.date) && s.residentId === 'funes')) got++;
-      expect(opt.evaluation.summary.hardCount).toBe(0);
-    }
-    expect(got).toBe(3);
-
-    // Con pedidos fuertes de otras para los dos XL, ganan los pedidos.
-    const requests = [
-      req({ residentId: 'costa', type: 'pedido_fuerte', intent: 'on', dates: ['2026-11-05'] }),
-      req({ residentId: 'gil', type: 'pedido_fuerte', intent: 'on', dates: ['2026-11-19'] }),
-    ];
-    const [opt] = generateOptions({ ...base, prior, requests }, { seed: 14, profiles: ['equidad'] });
-    const at = (d: string) => opt.slots.find((s) => s.date === d)?.residentId;
-    expect([at('2026-11-05'), at('2026-11-19')]).toEqual(['costa', 'gil']);
-  });
-
   it('quien tiene sábado en el mes tiene un jueves feliz (o finde XL)', () => {
     const sats = nov.filter((d) => d.weekday === 5);
     expect(sats.filter((d) => hasTag(d, 'sabado_finde_largo')).map((d) => d.date)).toEqual(['2026-11-07', '2026-11-21']);
@@ -172,6 +141,7 @@ describe('generador', () => {
   });
 
   it('el finde XL va por turnos: primero quien todavía no tuvo, aunque otra tenga más carga', () => {
+    // (entre quienes empatan en el turno, el orden es al azar)
     const xlDays = ['2026-11-05', '2026-11-19'];
     const prior = Object.fromEntries(
       residents.map((r) => [
@@ -183,7 +153,6 @@ describe('generador', () => {
     prior.costa = { ...prior.costa, xl: 0 };
     prior.duarte = { ...prior.duarte, xl: 0 };
     prior.funes = { ...prior.funes, total: 11, sabPref: 4, feriado: 2 };
-    expect(xlPriority(prior, residents.map((r) => r.id)).slice(0, 2).map((x) => x.residentId).sort()).toEqual(['costa', 'duarte']);
     for (const seed of [21, 22]) {
       const [opt] = generateOptions({ ...base, prior }, { seed, profiles: ['equidad'] });
       const got = xlDays.map((d) => opt.slots.find((s) => s.date === d)?.residentId).sort();

@@ -1,5 +1,4 @@
 import clsx from 'clsx';
-import { deleteDoc, doc } from 'firebase/firestore';
 import { useMemo, useState } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
 import Badge from '../components/Badge';
@@ -7,7 +6,6 @@ import ImportTextModal from '../components/ImportTextModal';
 import PersonBreakdownGrid from '../components/PersonBreakdown';
 import { Card, Dot, Modal, MonthNav, PageHeader, Segmented, btnPrimary, btnSecondary, inputCls } from '../components/ui';
 import { useAuthContext } from '../context/AuthContext';
-import { db } from '../firebase';
 import {
   useAllShifts,
   useCalendarData,
@@ -36,17 +34,15 @@ import {
   generateOptions,
   priorFromCounters,
   slotKey,
-  xlPriority,
   type GeneratedOption,
   type Issue,
   type ScheduleInput,
 } from '../lib/generator';
-import { logActivity } from '../lib/activity';
 import { buildBreakdown } from '../lib/breakdown';
 import { DEFAULT_DISABLED_NOTE, disableSlot, enableSlot } from '../lib/disableSlot';
 import { awayMonths } from '../lib/rotations';
 import { TAG_EMOJI, dayBgClass } from '../lib/labels';
-import { createRaffle, drawRaffle, winners } from '../lib/raffles';
+import { createRaffle, drawRaffle, setRaffleIgnored, winners } from '../lib/raffles';
 import {
   applyRaffleWinners,
   deleteDraft,
@@ -251,15 +247,6 @@ export default function Generador() {
   }, [days, monthRequests, active, onVacation]);
 
   const leading = days[0]?.weekday ?? 0;
-  const xlRanking = useMemo(() => {
-    const xlDays = days.filter((d) => d.tags.includes('finde_xl') && d.requiredR1 > 0);
-    if (!xlDays.length) return null;
-    const away = new Set(onVacation.map((r) => r.id));
-    const ids = active.map((r) => r.id).filter((id) => !away.has(id));
-    const order = xlPriority(prior, ids);
-    const slotsXl = xlDays.reduce((a, d) => a + d.requiredR1, 0);
-    return { days: xlDays.map((d) => shortDateLabel(d.date)).join(', '), order: order.slice(0, Math.max(3, slotsXl + 1)) };
-  }, [days, active, onVacation, prior]);
 
   return (
     <div>
@@ -366,26 +353,6 @@ export default function Generador() {
             title={`Editor — ${monthLabel(monthKey)}`}
             subtitle="Cambiar una guardia a mano la fija (🔒) para que regenerar no la toque. 🚫 = la toma otra persona (p. ej. residente mayor). ⛔ no puede · 🙅 pidió no estar · 🙋 pidió estar (o necesita el posguardia) · 🎂 cumple."
           >
-            {xlRanking && (
-              <p className="text-sm bg-accent-soft rounded-lg px-3 py-2 mb-3">
-                🌟 Findes XL del mes: <b>{xlRanking.days}</b>. Van por turnos: primero quien todavía no tuvo (o tuvo
-                menos); entre ellas, quien termina el mes con más carga (guardias, sábados/preferiados, feriados, findes,
-                noches sin dormir). Los jueves felices, a quien tiene sábado en el mes. Los pedidos mandan.
-                Finde XL, les toca a:{' '}
-                {xlRanking.order.map((x, i) => (
-                  <span key={x.residentId}>
-                    {i > 0 && ' · '}
-                    <b>{nameOf(x.residentId)}</b>
-                    <span className="text-text-dim">
-                      {' '}
-                      ({x.xl === 0 ? 'ningún XL' : `${x.xl} XL`}, carga {x.burden >= 0 ? '+' : ''}
-                      {x.burden.toFixed(1)})
-                    </span>
-                  </span>
-                ))}
-                .
-              </p>
-            )}
             {onVacation.length > 0 && (
               <p className="text-sm bg-warn-soft text-warn rounded-lg px-3 py-2 mb-3">
                 🏖️ De vacaciones este mes (según los carriles): <b>{onVacation.map((r) => r.shortName).join(', ')}</b>. El
@@ -393,16 +360,16 @@ export default function Generador() {
                 {cfg.rules.maxPerPerson > 0 && <> — revisá el tope de {cfg.rules.maxPerPerson} por persona en las reglas del mes</>}.
               </p>
             )}
-            <div className="md:overflow-x-auto md:-mx-1 md:px-1">
-              {/* Celular: lista de días; compu: grilla semanal. */}
-              <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-7 gap-1.5 md:min-w-[880px]">
+            <div className="xl:overflow-x-auto xl:-mx-1 xl:px-1">
+              {/* Celular y tablet: lista de días; compu grande: grilla semanal. */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-7 gap-1.5 xl:min-w-[880px]">
                 {WEEKDAY_KEYS.map((_, i) => (
-                  <div key={i} className="hidden md:block text-center text-xs text-text-dim font-medium py-1">
+                  <div key={i} className="hidden xl:block text-center text-xs text-text-dim font-medium py-1">
                     {WEEKDAY_SHORT[i as 0]}
                   </div>
                 ))}
                 {Array.from({ length: leading }, (_, i) => (
-                  <div key={`e${i}`} className="hidden md:block" />
+                  <div key={`e${i}`} className="hidden xl:block" />
                 ))}
                 {days.map((day) => (
                   <DayCell
@@ -535,11 +502,8 @@ export default function Generador() {
         onRemove={(slot) =>
           withBusy('Quitando sorteo…', async () => {
             const r = raffles.find((x) => x.id === slot.raffleId);
-            // Solo quien creó el sorteo puede borrarlo; si no, solo se desvincula de la guardia.
-            if (r?.status === 'pendiente' && r.createdBy === me?.id) {
-              await deleteDoc(doc(db, 'raffles', r.id));
-              await logActivity({ entity: 'sorteo', summary: `Quitó el sorteo de la guardia del ${shortDateLabel(slot.date)}` });
-            }
+            // Los sorteos no se borran: el de esta guardia queda ignorado.
+            if (r && !r.ignored) await setRaffleIgnored(r, true, me!.id);
             const key = slotKey(slot.date, slot.slotIndex);
             const next = draft.map((s) => {
               if (slotKey(s.date, s.slotIndex) !== key) return s;
@@ -623,7 +587,6 @@ function RulesCard({
             {special.map((d) => `${Number(d.date.slice(8))}${d.notes ? `: ${d.notes}` : ' sin R1'}`).join(' · ')}
           </p>
         )}
-        {cfg.notes && <p className="whitespace-pre-wrap bg-surface-2 rounded-lg p-2 text-xs">{cfg.notes}</p>}
         {privateNote && <p className="whitespace-pre-wrap bg-accent-soft rounded-lg p-2 text-xs">🔒 {privateNote}</p>}
       </div>
     </Card>
@@ -695,10 +658,10 @@ function DayCell({
   const names = (ids: Set<string>) => [...ids].map((id) => byId.get(id)?.shortName).filter(Boolean).join(', ');
   const emojis = day.tags.map((t) => TAG_EMOJI[t]).filter(Boolean).join('');
   return (
-    <div className={clsx('border border-border rounded-xl p-2 md:p-1.5 flex flex-col gap-1 md:min-h-[96px]', dayBgClass(day))}>
-      <div className="flex items-center justify-between text-sm md:text-xs">
+    <div className={clsx('border border-border rounded-xl p-2 xl:p-1.5 flex flex-col gap-1 xl:min-h-[96px]', dayBgClass(day))}>
+      <div className="flex items-center justify-between text-sm xl:text-xs">
         <span className="font-semibold">
-          <span className="md:hidden capitalize font-normal text-text-dim">{WEEKDAY_SHORT[day.weekday]} </span>
+          <span className="xl:hidden capitalize font-normal text-text-dim">{WEEKDAY_SHORT[day.weekday]} </span>
           {Number(day.date.slice(8))}
         </span>
         <span title={day.holidayName ?? ''}>{emojis}</span>
@@ -741,7 +704,7 @@ function DayCell({
             <select
               value={s.residentId ?? ''}
               onChange={(e) => onChange(key, e.target.value || null)}
-              className="flex-1 min-w-0 bg-transparent text-sm md:text-[11px] py-1.5 md:py-1 outline-none"
+              className="flex-1 min-w-0 bg-transparent text-sm xl:text-[11px] py-1.5 xl:py-1 outline-none"
               aria-label={`Guardia ${s.date}`}
             >
               <option value="">— libre —</option>
@@ -754,17 +717,17 @@ function DayCell({
             </select>
             <button
               onClick={() => onToggleLock(key, !s.locked)}
-              className={clsx('text-base md:text-[11px] px-1 md:px-0.5', s.locked ? 'opacity-100' : 'opacity-30 hover:opacity-70')}
+              className={clsx('text-base xl:text-[11px] px-1 xl:px-0.5', s.locked ? 'opacity-100' : 'opacity-30 hover:opacity-70')}
               title={s.locked ? 'Fijada: regenerar no la cambia' : 'Fijar'}
             >
               🔒
             </button>
-            <button onClick={() => onRaffle(s)} className="text-base md:text-[11px] px-1 md:px-0 opacity-30 hover:opacity-80" title="Sortear esta guardia">
+            <button onClick={() => onRaffle(s)} className="text-base xl:text-[11px] px-1 xl:px-0 opacity-30 hover:opacity-80" title="Sortear esta guardia">
               🎲
             </button>
             <button
               onClick={() => onDisable(s.slotIndex)}
-              className="text-base md:text-[11px] px-1 md:pl-0 opacity-30 hover:opacity-80"
+              className="text-base xl:text-[11px] px-1 xl:pl-0 opacity-30 hover:opacity-80"
               title="Deshabilitar: la toma otra persona (residente mayor)"
             >
               🚫

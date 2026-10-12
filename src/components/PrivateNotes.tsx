@@ -28,18 +28,18 @@ export function PrivateNotesEditor({ month }: { month: string }) {
 
   return (
     <label className="flex flex-col gap-1 text-sm">
-      🔒 Notas privadas del mes
-      <span className="text-xs text-text-dim">Solo las ves vos (ni el resto del grupo ni la otra admin).</span>
+      🔒 Notas y acuerdos del mes
+      <span className="text-xs text-text-dim">Solo las ves vos (ni el grupo ni la otra admin). Se guardan aparte de las reglas.</span>
       <textarea
         value={text}
         onChange={(e) => setText(e.target.value)}
         rows={3}
         className={inputCls}
-        placeholder="Recordatorios tuyos para armar este mes…"
+        placeholder="Ej.: martes 3 sin R1; Gil compensa sáb/preferiado de octubre…"
       />
       <span className="flex items-center gap-2">
         <button type="button" onClick={save} disabled={text.trim() === (note?.text ?? '')} className={btnSecondary}>
-          Guardar nota privada
+          Guardar notas
         </button>
         {status && <span className="text-xs text-ok">{status}</span>}
       </span>

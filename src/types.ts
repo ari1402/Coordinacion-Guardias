@@ -367,6 +367,10 @@ export interface Raffle {
   drawnAt?: string;
   /** Si el sorteo es por una guardia puntual del generador. */
   linkedSlot?: { date: string; slotIndex: number };
+  /** Ignorado: queda registrado, pero no cuenta (el generador no lo usa). */
+  ignored?: boolean;
+  ignoredBy?: string;
+  ignoredAt?: string;
   createdBy: string;
   createdAt: string;
 }

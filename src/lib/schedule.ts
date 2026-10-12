@@ -22,13 +22,20 @@ export function draftFromShifts(template: SlotRef[], shifts: Shift[]): DraftSlot
   });
 }
 
-/** Si un slot está en sorteo y ya se sorteó, el ganador queda fijo en el slot. */
+/**
+ * Si un slot está en sorteo y ya se sorteó, el ganador queda fijo en el slot.
+ * Si el sorteo se ignoró (o ya no existe), el slot vuelve a ser una guardia común.
+ */
 export function applyRaffleWinners(draft: DraftSlot[], raffles: Raffle[]): DraftSlot[] {
   const byId = new Map(raffles.map((r) => [r.id, r]));
   return draft.map((s) => {
     if (!s.raffleId) return s;
     const r = byId.get(s.raffleId);
-    if (r?.status === 'sorteado') return { ...s, residentId: winners(r)[0] ?? null, locked: true };
+    if (!r || r.ignored) {
+      const { raffleId: _ignored, ...rest } = s;
+      return rest;
+    }
+    if (r.status === 'sorteado') return { ...s, residentId: winners(r)[0] ?? null, locked: true };
     return { ...s, residentId: null, locked: false };
   });
 }

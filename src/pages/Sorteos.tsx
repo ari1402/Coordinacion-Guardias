@@ -1,15 +1,12 @@
 import clsx from 'clsx';
-import { deleteDoc, doc } from 'firebase/firestore';
 import { useEffect, useState } from 'react';
 import Badge from '../components/Badge';
 import { Card, Empty, PageHeader, ResidentChip, btnPrimary, btnSecondary, inputBase, inputCls } from '../components/ui';
 import { useAuthContext } from '../context/AuthContext';
-import { db } from '../firebase';
 import { useRaffles, useResidents, useResidentsById } from '../hooks/data';
 import { useColors } from '../hooks/useColors';
 import { shortDateLabel } from '../lib/dates';
-import { logActivity } from '../lib/activity';
-import { createRaffle, drawRaffle, winners } from '../lib/raffles';
+import { createRaffle, drawRaffle, setRaffleIgnored, winners } from '../lib/raffles';
 import type { Raffle } from '../types';
 
 export default function Sorteos() {
@@ -48,8 +45,10 @@ export default function Sorteos() {
     }
   }
 
-  const pending = raffles.filter((r) => r.status === 'pendiente');
-  const done = raffles.filter((r) => r.status === 'sorteado');
+  const pending = raffles.filter((r) => r.status === 'pendiente' && !r.ignored);
+  const done = raffles.filter((r) => r.status === 'sorteado' && !r.ignored);
+  const ignored = raffles.filter((r) => r.ignored);
+  const canIgnore = (r: Raffle) => isAdmin || r.createdBy === me?.id;
 
   return (
     <div className="flex flex-col gap-4">
@@ -117,7 +116,7 @@ export default function Sorteos() {
                     byId={byId}
                     color={color}
                     canDraw={isAdmin || (!r.linkedSlot && r.createdBy === me?.id)}
-                    canDelete={r.createdBy === me?.id}
+                    canIgnore={canIgnore(r)}
                     userId={me!.id}
                   />
                 ))}
@@ -141,9 +140,9 @@ export default function Sorteos() {
                     </div>
                     {r.description && <p className="text-sm text-text-dim">{r.description}</p>}
                     <div className="flex flex-wrap items-center gap-1.5">
-                      {r.createdBy === me?.id && (
-                        <button onClick={() => deleteRaffle(r, byId)} className="order-last ml-auto text-xs text-danger underline">
-                          borrar
+                      {canIgnore(r) && (
+                        <button onClick={() => setRaffleIgnored(r, true, me!.id)} className="order-last ml-auto text-xs text-text-dim underline">
+                          ignorar
                         </button>
                       )}
                       <span className="text-sm">🏆</span>
@@ -159,30 +158,32 @@ export default function Sorteos() {
               </ul>
             )}
           </Card>
+
+          {ignored.length > 0 && (
+            <details className="bg-surface border border-border rounded-2xl px-4 py-3">
+              <summary className="cursor-pointer text-sm font-medium">Ignorados ({ignored.length})</summary>
+              <p className="text-xs text-text-dim mt-1 mb-2">No cuentan para nada (ni en el generador), pero quedan registrados.</p>
+              <ul className="flex flex-col divide-y divide-border">
+                {ignored.map((r) => (
+                  <li key={r.id} className="py-2 flex items-center justify-between gap-2 text-sm">
+                    <span className="text-text-dim">
+                      {r.title} · {r.status}
+                      {r.status === 'sorteado' && ` (ganó ${winners(r).map((id) => byId.get(id)?.shortName).join(', ')})`}
+                    </span>
+                    {canIgnore(r) && (
+                      <button onClick={() => setRaffleIgnored(r, false, me!.id)} className="text-xs text-accent underline shrink-0">
+                        volver a tener en cuenta
+                      </button>
+                    )}
+                  </li>
+                ))}
+              </ul>
+            </details>
+          )}
         </div>
       </div>
     </div>
   );
-}
-
-/** Borra un sorteo propio; el historial guarda qué era y, si ya se había sorteado, el resultado. */
-async function deleteRaffle(raffle: Raffle, byId: Map<string, { shortName: string }>) {
-  const name = (id: string) => byId.get(id)?.shortName ?? id;
-  const drawn = raffle.status === 'sorteado';
-  const msg =
-    `¿Borrar el sorteo "${raffle.title}"?` +
-    (drawn ? `\n\nYa se sorteó (ganó ${winners(raffle).map(name).join(', ')}). Queda registrado en el historial.` : '') +
-    (drawn && raffle.linkedSlot ? '\n\nEra de una guardia del generador: ese lugar vuelve a quedar libre en el borrador.' : '');
-  if (!confirm(msg)) return;
-  await deleteDoc(doc(db, 'raffles', raffle.id));
-  await logActivity({
-    entity: 'sorteo',
-    summary: `Borró el sorteo "${raffle.title}"${drawn ? ' (ya sorteado)' : ''}`,
-    changes: [
-      `Participantes: ${raffle.participantIds.map(name).join(', ')}`,
-      ...(drawn ? [`Resultado: ${(raffle.order ?? []).map(name).join(' → ')}`] : []),
-    ],
-  });
 }
 
 function PendingRaffle({
@@ -190,14 +191,14 @@ function PendingRaffle({
   byId,
   color,
   canDraw,
-  canDelete,
+  canIgnore,
   userId,
 }: {
   raffle: Raffle;
   byId: Map<string, { shortName: string }>;
   color: (id: string) => string;
   canDraw: boolean;
-  canDelete: boolean;
+  canIgnore: boolean;
   userId: string;
 }) {
   const [rolling, setRolling] = useState(false);
@@ -250,12 +251,9 @@ function PendingRaffle({
             {raffle.linkedSlot ? 'Lo sortean Bea o Ana (es una guardia del cronograma).' : 'Lo sortea quien lo creó.'}
           </span>
         )}
-        {canDelete && !rolling && (
-          <button
-            onClick={() => deleteRaffle(raffle, byId)}
-            className={btnSecondary}
-          >
-            Borrar
+        {canIgnore && !rolling && (
+          <button onClick={() => setRaffleIgnored(raffle, true, userId)} className={btnSecondary} title="No se borra: queda registrado, pero no cuenta">
+            Ignorar
           </button>
         )}
       </div>

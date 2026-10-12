@@ -100,7 +100,7 @@ export default function Inicio() {
     .slice(0, 5);
   const pinned = links.filter((l) => l.pinned).slice(0, 8);
   const pendingRequests = requests.filter((r) => r.status === 'pendiente').slice(0, 4);
-  const recentRaffles = raffles.slice(0, 3);
+  const recentRaffles = raffles.filter((r) => !r.ignored).slice(0, 3);
   const nextMonth = shiftMonthKey(monthKey(today), 1);
   const dayOfMonth = Number(today.slice(8));
   // El aviso de pedidos dura 48 h (días 8 y 9): el 10 se generan las guardias.

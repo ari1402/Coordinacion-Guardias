@@ -3,7 +3,7 @@ import { deleteDoc, doc, setDoc, updateDoc } from 'firebase/firestore';
 import { useMemo, useState } from 'react';
 import Badge from '../components/Badge';
 import RequestTypeBadge from '../components/RequestTypeBadge';
-import { Card, Dot, Modal, MonthNav, PageHeader, ResidentChip, btnSecondary } from '../components/ui';
+import { Dot, Modal, MonthNav, PageHeader, ResidentChip, btnSecondary } from '../components/ui';
 import { useAuthContext } from '../context/AuthContext';
 import { db } from '../firebase';
 import {
@@ -20,7 +20,7 @@ import { eventEmoji } from '../components/Eventos';
 import { useColors } from '../hooks/useColors';
 import { useMonth } from '../hooks/useMonth';
 import { isBirthday } from '../lib/birthdays';
-import { effectiveMonthConfig, resolveMonth, shortDateLabel, todayISO } from '../lib/dates';
+import { resolveMonth, shortDateLabel, todayISO } from '../lib/dates';
 import { logActivity } from '../lib/activity';
 import { DEFAULT_DISABLED_NOTE, disableSlot, enableSlot } from '../lib/disableSlot';
 import { buildSlots } from '../lib/generator';
@@ -48,7 +48,6 @@ export default function Calendario() {
   const { rotations } = useRotations();
 
   const days = useMemo(() => resolveMonth(monthKey, storedDays, monthConfigs), [monthKey, storedDays, monthConfigs]);
-  const cfg = useMemo(() => effectiveMonthConfig(monthKey, monthConfigs), [monthKey, monthConfigs]);
   const today = todayISO();
   const shiftsByDate = useMemo(() => {
     const m = new Map<string, Shift[]>();
@@ -57,7 +56,7 @@ export default function Calendario() {
     return m;
   }, [shifts, monthKey]);
   const pendingRaffleDates = useMemo(
-    () => new Set(raffles.filter((r) => r.status === 'pendiente' && r.linkedSlot).map((r) => r.linkedSlot!.date)),
+    () => new Set(raffles.filter((r) => r.status === 'pendiente' && !r.ignored && r.linkedSlot).map((r) => r.linkedSlot!.date)),
     [raffles],
   );
   const myMonthShifts = shifts.filter((s) => s.actualResidentId === me?.id && s.date.startsWith(monthKey));
@@ -82,11 +81,6 @@ export default function Calendario() {
         }
       />
 
-      {cfg.notes && (
-        <Card title="📌 Acuerdos del mes" className="mb-4">
-          <p className="text-sm whitespace-pre-wrap">{cfg.notes}</p>
-        </Card>
-      )}
       <PrivateNotesCard month={monthKey} className="mb-4" />
 
       {lc || ls ? (

@@ -3,7 +3,7 @@ import { deleteDoc, doc, setDoc, updateDoc, writeBatch } from 'firebase/firestor
 import { useMemo, useState } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
 import Badge from '../components/Badge';
-import { Card, Dot, Empty, Modal, MonthNav, PageHeader, Segmented, btnPrimary, btnSecondary, inputBase, inputCls } from '../components/ui';
+import { Card, Dot, Empty, Modal, MonthNav, PageHeader, Segmented, btnPrimary, btnSecondary, inputBase } from '../components/ui';
 import { downloadAllJson, downloadAllXlsx, fetchAll } from '../lib/exportAll';
 import { db } from '../firebase';
 import { useAcks, useActivity, useCalendarData, useFeedback, usePublications, usePushTokens, useResidents, useResidentsById } from '../hooks/data';
@@ -36,7 +36,6 @@ const RULE_LABELS: Record<string, string> = {
   avoidDoubleSatPref: 'Máx. un sáb/preferiado',
   sabadoComunConJueves: 'Sábado → jueves feliz',
   juevesLibraFinde: 'Jueves libera el finde',
-  notes: 'Acuerdos del mes',
 };
 
 export default function Admin() {
@@ -105,13 +104,12 @@ function RulesForm({ month, configs }: { month: string; configs: MonthConfig[] }
   const eff = effectiveMonthConfig(month, configs);
   const [reqs, setReqs] = useState<WeekdayRequirements>(eff.weekdayRequirements);
   const [rules, setRules] = useState<MonthRules>(eff.rules);
-  const [notes, setNotes] = useState(eff.notes);
   const [saved, setSaved] = useState(false);
 
   async function save() {
-    await setDoc(doc(db, 'monthConfigs', month), { id: month, weekdayRequirements: reqs, rules, notes });
-    const before = { ...eff.weekdayRequirements, ...eff.rules, notes: eff.notes } as Record<string, unknown>;
-    const after = { ...reqs, ...rules, notes } as Record<string, unknown>;
+    await setDoc(doc(db, 'monthConfigs', month), { id: month, weekdayRequirements: reqs, rules });
+    const before = { ...eff.weekdayRequirements, ...eff.rules } as Record<string, unknown>;
+    const after = { ...reqs, ...rules } as Record<string, unknown>;
     await logActivity({
       entity: 'reglas',
       summary: `Guardó las reglas de ${monthLabel(month)}`,
@@ -182,11 +180,7 @@ function RulesForm({ month, configs }: { month: string; configs: MonthConfig[] }
           {toggle('sabadoComunConJueves', 'Quien tenga un sábado, que tenga un jueves feliz')}
           {toggle('juevesLibraFinde', 'Guardia de jueves → ese finde libre hasta el primer día hábil')}
         </div>
-        <label className="flex flex-col gap-1 text-sm">
-          Acuerdos del mes para el grupo
-          <span className="text-xs text-text-dim">Los ve todo el grupo en el calendario. Para algo solo tuyo, usá las notas privadas de abajo.</span>
-          <textarea value={notes} onChange={(e) => setNotes(e.target.value)} rows={4} className={clsx(inputCls, 'resize-y')} placeholder="Ej.: martes 3 sin R1; Gil compensa sáb/preferiado de octubre…" />
-        </label>
+        <PrivateNotesEditor month={month} />
         <div className="flex gap-2 items-center">
           <button onClick={save} className={btnPrimary}>
             Guardar reglas
@@ -204,9 +198,6 @@ function RulesForm({ month, configs }: { month: string; configs: MonthConfig[] }
             </button>
           )}
           {saved && <span className="text-sm text-ok">Guardado ✓</span>}
-        </div>
-        <div className="border-t border-border pt-4">
-          <PrivateNotesEditor month={month} />
         </div>
       </div>
     </Card>

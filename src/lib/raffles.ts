@@ -1,4 +1,4 @@
-import { addDoc, collection, doc, getDoc, writeBatch } from 'firebase/firestore';
+import { addDoc, collection, doc, getDoc, updateDoc, writeBatch } from 'firebase/firestore';
 import { db } from '../firebase';
 import type { Raffle } from '../types';
 import { logActivity } from './activity';
@@ -68,4 +68,17 @@ export function winners(raffle: Raffle): string[] {
 /** Firestore no acepta campos undefined. */
 export function stripUndefined<T extends object>(obj: T): T {
   return Object.fromEntries(Object.entries(obj).filter(([, v]) => v !== undefined)) as T;
+}
+
+/** Ignorar (o volver a tener en cuenta) un sorteo: no se borra, queda registrado. */
+export async function setRaffleIgnored(raffle: Raffle, ignored: boolean, userId: string) {
+  await updateDoc(doc(db, 'raffles', raffle.id), {
+    ignored,
+    ignoredBy: userId,
+    ignoredAt: new Date().toISOString(),
+  });
+  await logActivity({
+    entity: 'sorteo',
+    summary: ignored ? `Ignoró el sorteo "${raffle.title}"` : `Volvió a tener en cuenta el sorteo "${raffle.title}"`,
+  });
 }
