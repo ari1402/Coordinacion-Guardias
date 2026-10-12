@@ -97,7 +97,7 @@ export function monthSheets({ monthKey, days, shifts, residents, rotations = [],
   const rotation = (id: string) => rotations.find((r) => r.id === id)?.months[monthKey] ?? '';
   const summaryHeader = [
     'Residente', 'Carril', 'Guardias del mes', 'Fechas', 'Lun–Mié', 'Jue', 'Vie', 'Sáb', 'Dom',
-    'Sáb + preferiados', 'Feriados', 'Findes libres', 'Separación mínima (días)', 'Total acumulado',
+    'Sáb + preferiados', 'Feriados', 'Findes libres', 'Findes largos libres', 'Findes XL', 'Separación mínima (días)', 'Total acumulado',
   ];
   const summary: Cell[][] = [
     [{ v: `Resumen por persona — ${label}`, s: 'title' }],
@@ -117,6 +117,8 @@ export function monthSheets({ monthKey, days, shifts, residents, rotations = [],
         b.sabPref,
         b.feriados,
         `${b.findesLibres} de ${b.findesDelMes}`,
+        b.findesLargosDelMes ? `${b.findesLargosLibres} de ${b.findesLargosDelMes}` : '—',
+        b.xl,
         b.minGap ?? '—',
         b.cumTotal,
       ];
@@ -162,7 +164,7 @@ export function monthSheets({ monthKey, days, shifts, residents, rotations = [],
 
   return [
     { name: 'Calendario', rows: cal, cols: Array(7).fill(18), merges: ['A1:G1'], heights },
-    { name: 'Por persona', rows: summary, cols: [22, 11, 10, 48, 8, 6, 6, 6, 6, 10, 9, 10, 12, 10], merges: ['A1:F1'], freezeRows: 2, heights: { 1: 32 } },
+    { name: 'Por persona', rows: summary, cols: [22, 11, 10, 48, 8, 6, 6, 6, 6, 10, 9, 10, 11, 8, 12, 10], merges: ['A1:F1'], freezeRows: 2, heights: { 1: 32 } },
     { name: 'Lista por persona', rows: detail, cols: [22, 12, 11, 34, 12], merges: ['A1:E1'], freezeRows: 2 },
     { name: 'Por día', rows: perDay, cols: [12, 6, 26, 10, 30, 40], merges: ['A1:F1'], freezeRows: 2 },
   ];

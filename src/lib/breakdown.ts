@@ -1,5 +1,5 @@
 import type { DayTag, DraftSlot, ResolvedDay, Weekday } from '../types';
-import { addDaysISO, diffDays, hasTag, isSabadoOrPreferiado } from './dates';
+import { addDaysISO, diffDays, hasTag, isSabadoOrPreferiado, weekendBlock } from './dates';
 import type { PriorCounts } from './generator';
 
 export interface PersonShift {
@@ -24,6 +24,9 @@ export interface PersonBreakdown {
   findeTotal: number;
   findesLibres: number;
   findesLibres100: number;
+  /** Findes largos libres (sin contar el finde XL) y cuántos findes largos tiene el mes. */
+  findesLargosLibres: number;
+  findesLargosDelMes: number;
   findesDelMes: number;
   minGap: number | null;
   avgGap: number | null;
@@ -40,6 +43,8 @@ export function buildBreakdown(
 ): Record<string, PersonBreakdown> {
   const dayByDate = new Map(days.map((d) => [d.date, d]));
   const saturdays = days.filter((d) => d.weekday === 5);
+  const holidays = new Set(days.filter((d) => d.isHoliday).map((d) => d.date));
+  const blocks = saturdays.map((sat) => weekendBlock(sat.date, (d) => holidays.has(d)));
 
   return Object.fromEntries(
     residentIds.map((id) => {
@@ -57,7 +62,8 @@ export function buildBreakdown(
         return { date: s.date, weekday: day.weekday, tags: day.tags, gapBefore, locked: s.locked, raffle: !!s.raffleId };
       });
       const list = shifts.map((s) => dayByDate.get(s.date)!);
-      const libres = saturdays.filter((sat) => [-1, 0, 1].every((d) => !dates.has(addDaysISO(sat.date, d))));
+      const libres = blocks.filter((b) => [b.eve, ...b.days].every((d) => !dates.has(d)));
+      const largosLibres = libres.filter((b) => b.long && !dates.has(addDaysISO(b.eve, -1)));
       const sabPref = list.filter(isSabadoOrPreferiado).length;
       return [
         id,
@@ -72,7 +78,9 @@ export function buildBreakdown(
           juevesFelices: list.filter((d) => hasTag(d, 'jueves_feliz')).length,
           findeTotal: list.filter((d) => d.weekday >= 4).length,
           findesLibres: libres.length,
-          findesLibres100: libres.filter((sat) => !dates.has(addDaysISO(sat.date, -2))).length,
+          findesLibres100: libres.filter((b) => !dates.has(addDaysISO(b.eve, -1))).length,
+          findesLargosLibres: largosLibres.length,
+          findesLargosDelMes: blocks.filter((b) => b.long).length,
           findesDelMes: saturdays.length,
           minGap: gaps.length ? Math.min(...gaps) : null,
           avgGap: gaps.length ? gaps.reduce((a, b) => a + b, 0) / gaps.length : null,

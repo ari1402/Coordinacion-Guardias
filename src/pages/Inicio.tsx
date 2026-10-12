@@ -38,13 +38,13 @@ import { requesterName } from '../types';
 const SNAPSHOT: { key: keyof EquityCounters; label: string; benefit?: boolean; hint: string }[] = [
   { key: 'totalGuardias', label: 'Guardias totales', hint: 'todas las guardias hechas o publicadas' },
   { key: 'sabadosYPreferiados', label: 'Sábados + preferiados', hint: 'las que cortan el finde' },
-  { key: 'sabadosFindeLargo', label: 'Sábados de finde largo', hint: 'pesan más que uno común' },
   { key: 'sabadosSinCompensar', label: 'Sábados sin jueves', hint: 'sin jueves feliz o XL ese mes' },
   { key: 'findeTotal', label: 'Vie + sáb + dom', hint: 'guardias de fin de semana' },
   { key: 'feriados', label: 'Feriados', hint: 'guardias en feriado' },
   { key: 'findesXL', label: 'Findes XL', benefit: true, hint: 'jueves antes de lunes feriado' },
   { key: 'juevesFelices', label: 'Jueves felices', benefit: true, hint: 'jueves comunes' },
-  { key: 'findesLibresA', label: 'Findes libres', benefit: true, hint: 'sin guardia vie/sáb/dom' },
+  { key: 'findesLibresComunes', label: 'Findes comunes libres', benefit: true, hint: 'sin guardia vie a la noche, sáb y dom' },
+  { key: 'findesLibresLargos', label: 'Findes largos libres', benefit: true, hint: 'libre desde la noche anterior hasta el feriado' },
 ];
 
 function daysUntilLabel(n: number) {

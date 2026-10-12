@@ -85,6 +85,15 @@ export default function PersonBreakdownGrid({
               <dd className="text-right tabular-nums">
                 {b.findesLibres}/{b.findesDelMes} <span className="text-text-dim">({b.findesLibres100} 100%)</span>
               </dd>
+              {b.findesLargosDelMes > 0 && (
+                <>
+                  <dt className="text-text-dim">Findes largos libres</dt>
+                  <dd className="text-right tabular-nums">
+                    {b.findesLargosLibres}/{b.findesLargosDelMes}
+                    {b.xl > 0 && <span className="text-text-dim"> (+{b.xl} XL)</span>}
+                  </dd>
+                </>
+              )}
               <dt className="text-text-dim">Sáb + preferiado</dt>
               <dd className="text-right tabular-nums">
                 {b.sabPref} <span className="text-text-dim">(acum. {b.cumSabPref})</span>

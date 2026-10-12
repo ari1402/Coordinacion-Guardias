@@ -77,8 +77,8 @@ function summarySheet(data: AllData): Sheet {
     awayMonths(data.rotations as unknown as Rotation[]),
   );
   const header = [
-    'Residente', 'Guardias', 'Lun–Mié', 'Jue', 'Vie', 'Sáb', 'Sáb finde largo', 'Sáb sin jueves', 'Dom', 'Sáb + pref.', 'Feriados',
-    'Findes XL', 'Jueves felices', 'Findes libres', 'Sin dormir', 'Separación mín.', 'Separación prom.',
+    'Residente', 'Guardias', 'Lun–Mié', 'Jue', 'Vie', 'Sáb', 'Sáb sin jueves', 'Dom', 'Sáb + pref.', 'Feriados',
+    'Findes XL', 'Jueves felices', 'Findes libres', 'Findes largos libres', 'Findes comunes libres', 'Guardias en finde largo', 'Sin dormir', 'Separación mín.', 'Separación prom.',
   ];
   return {
     name: 'Resumen',
@@ -89,13 +89,13 @@ function summarySheet(data: AllData): Sheet {
         const c = counters[r.id];
         return [
           { v: r.name, s: 'bold' },
-          c.totalGuardias, c.lunAMie, c.jueves, c.viernes, c.sabados, c.sabadosFindeLargo, c.sabadosSinCompensar, c.domingos, c.sabadosYPreferiados, c.feriados,
-          c.findesXL, c.juevesFelices, c.findesLibresA, c.sinDormir, c.distanciaMinima ?? '—',
+          c.totalGuardias, c.lunAMie, c.jueves, c.viernes, c.sabados, c.sabadosSinCompensar, c.domingos, c.sabadosYPreferiados, c.feriados,
+          c.findesXL, c.juevesFelices, c.findesLibresA, c.findesLibresLargos, c.findesLibresComunes, c.guardiasFindeLargo, c.sinDormir, c.distanciaMinima ?? '—',
           c.distanciaPromedio === null ? '—' : Math.round(c.distanciaPromedio * 10) / 10,
         ];
       }),
     ],
-    cols: [22, ...Array(16).fill(10)],
+    cols: [22, ...Array(18).fill(10)],
     merges: ['A1:H1'],
     freezeRows: 2,
     heights: { 1: 30 },

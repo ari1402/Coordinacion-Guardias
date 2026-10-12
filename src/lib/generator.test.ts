@@ -312,14 +312,19 @@ describe('utilidades', () => {
   });
 });
 
-describe('métricas de sábados', () => {
-  it('distingue sábado de finde largo y cuenta los sábados sin jueves que los compense', () => {
+describe('métricas de findes', () => {
+  it('cuenta sábados sin jueves y separa findes libres comunes y largos', () => {
     const nov = resolveMonth('2026-11', holidays, configs);
     const shift = (date: string) => ({ id: `${date}_0`, date, slotIndex: 0, assignedResidentId: 'x', actualResidentId: 'x', status: 'programada' as const, createdAt: '' });
-    // 7/11 = sábado de finde largo (lunes 9 feriado); 14/11 = sábado común; 12/11 = jueves feliz.
-    const c = computeEquityCounters('x', ['2026-11-07', '2026-11-12', '2026-11-14'].map(shift), nov);
-    expect(c.sabados).toBe(2);
-    expect(c.sabadosFindeLargo).toBe(1);
-    expect(c.sabadosSinCompensar).toBe(1);
+    // Findes de noviembre: 1/11 (dom), 7–10 (largo: lun 9 y mar 10 feriados), 14–15, 21–23 (largo), 28–29.
+    // Guardias: sáb 14 (común), jue 12 (jueves feliz), lun 23 (feriado del finde largo del 21).
+    const c = computeEquityCounters('x', ['2026-11-12', '2026-11-14', '2026-11-23'].map(shift), nov);
+    expect(c.sabados).toBe(1);
+    expect(c.sabadosSinCompensar).toBe(0);
+    expect(c.findesLibresLargos).toBe(1); // 6–10 libre; 20–23 no (guardia el lunes 23)
+    expect(c.findesLibresComunes).toBe(1); // 27–29 libre; 13–15 no
+    expect(c.guardiasFindeLargo).toBe(1);
+    const sinJueves = computeEquityCounters('x', ['2026-11-14', '2026-11-28'].map(shift), nov);
+    expect(sinJueves.sabadosSinCompensar).toBe(2);
   });
 });

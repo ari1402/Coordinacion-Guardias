@@ -20,7 +20,7 @@ export type ProfileId = 'equidad' | 'pedidos' | 'descanso';
 interface Weights {
   total: number;
   sabPref: number;
-  sabLargo: number;
+  largo: number;
   feriado: number;
   viernes: number;
   domingo: number;
@@ -44,7 +44,7 @@ interface Weights {
 const BASE: Weights = {
   total: 40,
   sabPref: 30,
-  sabLargo: 45,
+  largo: 30,
   feriado: 20,
   viernes: 8,
   domingo: 8,
@@ -68,7 +68,7 @@ export const PROFILES: Record<ProfileId, { label: string; description: string; w
   equidad: {
     label: 'Máxima equidad',
     description: 'Prioriza repartir parejo con el acumulado: totales, sábados/preferiados, feriados y findes.',
-    weights: { ...BASE, total: 80, sabPref: 60, sabLargo: 90, feriado: 40, xl: 30, findeTotal: 20, xlComp: 60, felizComp: 40, satThu: 200 },
+    weights: { ...BASE, total: 80, sabPref: 60, largo: 60, feriado: 40, xl: 30, findeTotal: 20, xlComp: 60, felizComp: 40, satThu: 200 },
   },
   pedidos: {
     label: 'Máximo respeto de pedidos',
@@ -96,7 +96,7 @@ const POST_THURSDAY = 50_000;
  */
 const XL_ROTATION = 1_500;
 
-const CATS = ['total', 'sabPref', 'sabLargo', 'feriado', 'viernes', 'domingo', 'findeTotal', 'xl', 'jueves'] as const;
+const CATS = ['total', 'sabPref', 'largo', 'feriado', 'viernes', 'domingo', 'findeTotal', 'xl', 'jueves'] as const;
 type Cat = (typeof CATS)[number];
 
 /** Acumulado previo al mes que se genera (para que un mes compense al anterior). */
@@ -106,7 +106,7 @@ export function priorFromCounters(c: EquityCounters | undefined, lastShiftDate?:
   return {
     total: c?.totalGuardias ?? 0,
     sabPref: c?.sabadosYPreferiados ?? 0,
-    sabLargo: c?.sabadosFindeLargo ?? 0,
+    largo: c?.guardiasFindeLargo ?? 0,
     feriado: c?.feriados ?? 0,
     viernes: c?.viernes ?? 0,
     domingo: c?.domingos ?? 0,
@@ -125,9 +125,9 @@ export function priorFromCounters(c: EquityCounters | undefined, lastShiftDate?:
  * primero a quien viene con más guardias, sábados/preferiados, feriados,
  * findes y noches sin dormir. Los pedidos siguen pesando más.
  */
-export const BURDEN_WEIGHTS = { total: 1, sabPref: 1.5, sabLargo: 1, feriado: 1, findeTotal: 0.5, sinDormir: 0.5 } as const;
+export const BURDEN_WEIGHTS = { total: 1, sabPref: 1.5, largo: 1, feriado: 1, findeTotal: 0.5, sinDormir: 0.5 } as const;
 
-type BurdenCounts = { total: number; sabPref: number; sabLargo: number; feriado: number; findeTotal: number; sinDormir: number };
+type BurdenCounts = { total: number; sabPref: number; largo: number; feriado: number; findeTotal: number; sinDormir: number };
 
 export function burdenScores(counts: BurdenCounts[]): number[] {
   const n = counts.length || 1;
@@ -262,7 +262,8 @@ interface SlotMeta {
   dayNum: number;
   weekday: number;
   sabPref: boolean;
-  sabLargo: boolean;
+  /** Cae en un finde largo (incluida la noche anterior). */
+  largo: boolean;
   feriado: boolean;
   viernes: boolean;
   domingo: boolean;
@@ -335,7 +336,7 @@ function compile(input: ScheduleInput): Problem {
       dayNum: diffDays(base, date),
       weekday: d.weekday,
       sabPref: isSabadoOrPreferiado(d),
-      sabLargo: hasTag(d, 'sabado_finde_largo'),
+      largo: hasTag(d, 'finde_largo'),
       feriado: d.isHoliday,
       viernes: d.weekday === 4,
       domingo: d.weekday === 6,
@@ -443,10 +444,10 @@ function run(p: Problem, assign: Int16Array, W: Weights, out: Collector | null):
   const nR = p.resIds.length;
   const { minGapHard, minGapIdeal } = p.rules;
   const month = Array.from({ length: nR }, () => ({
-    total: 0, sabPref: 0, sabLargo: 0, feriado: 0, viernes: 0, domingo: 0, findeTotal: 0, xl: 0, jueves: 0,
+    total: 0, sabPref: 0, largo: 0, feriado: 0, viernes: 0, domingo: 0, findeTotal: 0, xl: 0, jueves: 0,
   }));
   const juevesBueno = new Uint8Array(nR); // jueves feliz o finde XL
-  const sabado = new Uint8Array(nR); // 1 = sábado común, 2 = sábado de finde largo
+  const sabado = new Uint8Array(nR);
   const wd = new Uint16Array(nR * 7);
   const last = [...p.priorLast];
   const lastThu = [...p.priorLastThu];
@@ -500,7 +501,7 @@ function run(p: Problem, assign: Int16Array, W: Weights, out: Collector | null):
     const c = month[r];
     c.total++;
     if (m.sabPref) c.sabPref++;
-    if (m.sabLargo) c.sabLargo++;
+    if (m.largo) c.largo++;
     if (m.feriado) c.feriado++;
     if (m.viernes) c.viernes++;
     if (m.domingo) c.domingo++;
@@ -508,7 +509,7 @@ function run(p: Problem, assign: Int16Array, W: Weights, out: Collector | null):
     if (m.xl) c.xl++;
     if (m.juevesFeliz) c.jueves++;
     if (m.juevesFeliz || m.xl) juevesBueno[r] = 1;
-    if (m.weekday === 5) sabado[r] = Math.max(sabado[r], m.sabLargo ? 2 : 1);
+    if (m.weekday === 5) sabado[r] = 1;
     wd[r * 7 + m.weekday]++;
 
     const prev = last[r];
@@ -629,7 +630,7 @@ function run(p: Problem, assign: Int16Array, W: Weights, out: Collector | null):
     month.map((m, r) => ({
       total: p.prior[r].total + m.total - m.xl - m.jueves,
       sabPref: p.prior[r].sabPref + m.sabPref,
-      sabLargo: p.prior[r].sabLargo + m.sabLargo,
+      largo: p.prior[r].largo + m.largo,
       feriado: p.prior[r].feriado + m.feriado,
       findeTotal: p.prior[r].findeTotal + m.findeTotal,
       sinDormir: p.prior[r].sinDormir ?? 0,
@@ -670,14 +671,13 @@ function run(p: Problem, assign: Int16Array, W: Weights, out: Collector | null):
     }
     // El jueves feliz compensa el sábado: quien tiene sábado en el mes, que
     // tenga un jueves feliz (o un finde XL).
-    // Un sábado de finde largo pide la compensación con más fuerza.
     if (p.rules.sabadoComunConJueves && sabado[r] && !juevesBueno[r]) {
-      cost += W.satThu * (sabado[r] === 2 ? 1.6 : 1);
+      cost += W.satThu;
       out?.issues.push({
         severity: 'soft',
         code: 'sabado_sin_jueves',
         residentId: p.resIds[r],
-        message: `${name(r)} tiene sábado${sabado[r] === 2 ? ' de finde largo' : ''} pero ningún jueves feliz.`,
+        message: `${name(r)} tiene sábado pero ningún jueves feliz.`,
       });
     }
   }

@@ -1,5 +1,5 @@
 import type { CalendarDay, EquityCounters, MonthConfig, ResolvedDay, Shift } from '../types';
-import { addDaysISO, gapsBetween, hasTag, monthKey, monthsBetween, resolveMonths } from './dates';
+import { addDaysISO, gapsBetween, hasTag, monthKey, monthsBetween, resolveMonths, weekendBlock } from './dates';
 
 /**
  * Contadores de equidad de un residente. Usa siempre `actualResidentId`
@@ -28,7 +28,6 @@ export function computeEquityCounters(
     jueves: 0,
     viernes: 0,
     sabados: 0,
-    sabadosFindeLargo: 0,
     sabadosSinCompensar: 0,
     domingos: 0,
     preferiados: 0,
@@ -39,6 +38,9 @@ export function computeEquityCounters(
     findeTotal: 0,
     findesLibresA: 0,
     findesLibresB: 0,
+    findesLibresComunes: 0,
+    findesLibresLargos: 0,
+    guardiasFindeLargo: 0,
     distanciaMinima: null,
     distanciaPromedio: null,
     sinDormir: 0,
@@ -54,7 +56,7 @@ export function computeEquityCounters(
     if (day.weekday === 3) c.jueves++;
     if (day.weekday === 4) c.viernes++;
     if (day.weekday === 5) c.sabados++;
-    if (hasTag(day, 'sabado_finde_largo')) c.sabadosFindeLargo++;
+    if (hasTag(day, 'finde_largo')) c.guardiasFindeLargo++;
     if (day.weekday === 6) c.domingos++;
     if (day.weekday >= 4) c.findeTotal++;
     if (hasTag(day, 'preferiado')) c.preferiados++;
@@ -76,14 +78,22 @@ export function computeEquityCounters(
   }
   for (const m of perMonth.values()) c.sabadosSinCompensar += Math.max(0, m.sab - m.jue);
 
+  // Findes libres: desde la noche anterior (último día hábil) hasta el último
+  // día no hábil. Un finde largo libre es, p. ej., viernes a la noche,
+  // sábado, domingo y lunes feriado sin guardia.
+  const holidays = new Set(days.filter((d) => d.isHoliday).map((d) => d.date));
+  const isHoliday = (d: string) => holidays.has(d);
   for (const day of days) {
     if (day.weekday !== 5) continue; // un finde se evalúa una vez, en su sábado
     if (away?.has(monthKey(day.date))) continue;
-    const free = [-1, 0, 1].every((d) => !occupied.has(addDaysISO(day.date, d)));
-    if (free) {
-      c.findesLibresA++;
-      if (!occupied.has(addDaysISO(day.date, -2))) c.findesLibresB++;
-    }
+    const block = weekendBlock(day.date, isHoliday);
+    const free = [block.eve, ...block.days].every((d) => !occupied.has(d));
+    if (!free) continue;
+    const xl = block.long && occupied.has(addDaysISO(block.eve, -1)); // ya cuenta como finde XL
+    c.findesLibresA++;
+    if (block.long && !xl) c.findesLibresLargos++;
+    else if (!block.long) c.findesLibresComunes++;
+    if (!occupied.has(addDaysISO(block.eve, -1))) c.findesLibresB++;
   }
 
   const gaps = gapsBetween(mine.map((s) => s.date));

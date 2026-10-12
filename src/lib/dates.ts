@@ -153,6 +153,9 @@ function resolveDay(
   // Jueves: "finde XL" si el lunes siguiente es feriado; si no, "jueves feliz".
   if (weekday === 3) tags.push(holidayAt(addDaysISO(dateISO, 4)) ? 'finde_xl' : 'jueves_feliz');
 
+  // Día de finde largo (3+ días no hábiles seguidos, con la noche anterior).
+  if (isLongWeekendDay(dateISO, holidayAt)) tags.push('finde_largo');
+
   // Sábado de finde largo: el viernes, sábado, domingo o lunes es feriado.
   if (weekday === 5) {
     const long = [-1, 0, 1, 2].some((d) => holidayAt(addDaysISO(dateISO, d)));
@@ -207,6 +210,28 @@ export function isSabadoOrPreferiado(day: ResolvedDay): boolean {
 
 export function isBusinessDay(dateISO: string, isHoliday: (d: string) => boolean): boolean {
   return isoWeekday(dateISO) <= 4 && !isHoliday(dateISO);
+}
+
+/**
+ * El finde que contiene un día no hábil: la noche anterior (el último día
+ * hábil, p. ej. el viernes) + todos los días no hábiles seguidos (sáb, dom y
+ * feriados pegados). Es "largo" si son 3 o más días no hábiles.
+ */
+export function weekendBlock(dateISO: string, isHoliday: (d: string) => boolean): { eve: string; days: string[]; long: boolean } {
+  let start = dateISO;
+  while (!isBusinessDay(addDaysISO(start, -1), isHoliday)) start = addDaysISO(start, -1);
+  let end = dateISO;
+  while (!isBusinessDay(addDaysISO(end, 1), isHoliday)) end = addDaysISO(end, 1);
+  const days: string[] = [];
+  for (let d = start; d <= end; d = addDaysISO(d, 1)) days.push(d);
+  return { eve: addDaysISO(start, -1), days, long: days.length >= 3 };
+}
+
+/** ¿El día es parte de un finde largo (incluida la noche anterior)? */
+export function isLongWeekendDay(dateISO: string, isHoliday: (d: string) => boolean): boolean {
+  if (!isBusinessDay(dateISO, isHoliday)) return weekendBlock(dateISO, isHoliday).long;
+  const next = addDaysISO(dateISO, 1);
+  return !isBusinessDay(next, isHoliday) && weekendBlock(next, isHoliday).long;
 }
 
 /**

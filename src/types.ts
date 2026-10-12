@@ -109,7 +109,8 @@ export type DayTag =
   | 'finde'
   | 'sabado_comun'
   | 'sabado_finde_largo'
-  | 'r_mayores';
+  | 'r_mayores'
+  | 'finde_largo';
 
 /** Día ya resuelto con sus etiquetas derivadas, listo para UI/algoritmo. */
 export interface ResolvedDay {
@@ -395,8 +396,6 @@ export interface EquityCounters {
   jueves: number;
   viernes: number;
   sabados: number;
-  /** Sábados de finde largo (vie, sáb, dom o lun feriado): pesan más que uno común. */
-  sabadosFindeLargo: number;
   /** Sábados que en su mes no tuvieron jueves feliz ni finde XL que los compense. */
   sabadosSinCompensar: number;
   domingos: number;
@@ -406,8 +405,14 @@ export interface EquityCounters {
   findesXL: number;
   juevesFelices: number;
   findeTotal: number; // vie + sáb + dom
-  findesLibresA: number; // sin guardia vie/sáb/dom
+  findesLibresA: number; // findes libres (comunes + largos): sin guardia desde la noche anterior hasta el último día no hábil
   findesLibresB: number; // además sin posguardia del jueves
+  /** Findes comunes (sáb + dom) libres: sin guardia vie, sáb ni dom. */
+  findesLibresComunes: number;
+  /** Findes largos libres: sin guardia desde la noche anterior (p. ej. viernes) hasta el lunes feriado. */
+  findesLibresLargos: number;
+  /** Guardias que caen en un finde largo (incluida la noche anterior). */
+  guardiasFindeLargo: number;
   distanciaMinima: number | null;
   distanciaPromedio: number | null;
   sinDormir: number; // guardias reportadas sin dormir
