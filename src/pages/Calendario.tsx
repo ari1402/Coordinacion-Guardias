@@ -6,15 +6,18 @@ import RequestTypeBadge from '../components/RequestTypeBadge';
 import { Card, Dot, Modal, MonthNav, PageHeader, ResidentChip, btnSecondary } from '../components/ui';
 import { useAuthContext } from '../context/AuthContext';
 import { db } from '../firebase';
-import { useAllShifts, useCalendarData, useRaffles, useRequests, useResidents, useResidentsById } from '../hooks/data';
+import { useAllShifts, useCalendarData, useEvents, useRaffles, useRequests, useResidents, useResidentsById } from '../hooks/data';
+import { eventEmoji } from '../components/Eventos';
 import { useColors } from '../hooks/useColors';
 import { useMonth } from '../hooks/useMonth';
 import { isBirthday } from '../lib/birthdays';
 import { effectiveMonthConfig, resolveMonth, shortDateLabel, todayISO } from '../lib/dates';
 import { logActivity } from '../lib/activity';
+import { DEFAULT_DISABLED_NOTE, disableSlot, enableSlot } from '../lib/disableSlot';
+import { buildSlots } from '../lib/generator';
 import { downloadFile, shiftsToIcs } from '../lib/ics';
 import { LEGEND, TAG_EMOJI, TAG_LABEL, dayBgClass } from '../lib/labels';
-import type { GuardiaRequest, Resident, ResolvedDay, Shift, ShiftStatus } from '../types';
+import type { CamadaEvent, GuardiaRequest, Resident, ResolvedDay, Shift, ShiftStatus } from '../types';
 import { WEEKDAY_SHORT, requestIntent, requestShiftDates } from '../types';
 
 export default function Calendario() {
@@ -25,6 +28,8 @@ export default function Calendario() {
   const { residents } = useResidents();
   const { requests } = useRequests();
   const { raffles } = useRaffles();
+  const { events } = useEvents();
+  const eventsOn = (date: string) => events.filter((e) => e.dates.includes(date));
   const byId = useResidentsById(residents);
   const color = useColors(residents);
   const [selected, setSelected] = useState<string | null>(null);
@@ -117,7 +122,10 @@ export default function Calendario() {
                     <span className={clsx('font-semibold', day.date === today && 'text-accent')}>
                       {Number(day.date.slice(8))}
                     </span>
-                    <span>{day.tags.map((t) => TAG_EMOJI[t]).filter(Boolean).join('')}</span>
+                    <span>
+                      {day.tags.map((t) => TAG_EMOJI[t]).filter(Boolean).join('')}
+                      {eventsOn(day.date).map(eventEmoji).join('')}
+                    </span>
                   </span>
                   <span className="flex flex-wrap gap-0.5">
                     {list.map((s) => (
@@ -142,7 +150,7 @@ export default function Calendario() {
                 {l.label}
               </span>
             ))}
-            <span className="px-2 py-1">🎂 cumpleaños · 🎲 sorteo pendiente</span>
+            <span className="px-2 py-1">🎂 cumpleaños · 🎲 sorteo pendiente · 🎓 evento (AAARBA, cursos) · 🚫 la toma otra persona</span>
           </div>
         </>
       )}
@@ -157,6 +165,7 @@ export default function Calendario() {
           byId={byId}
           color={color}
           requests={requests.filter((r) => requestShiftDates(r).includes(selectedDay.date))}
+          events={eventsOn(selectedDay.date)}
         />
       )}
     </div>
@@ -172,6 +181,7 @@ function DayModal({
   byId,
   color,
   requests,
+  events,
 }: {
   day: ResolvedDay;
   shifts: Shift[];
@@ -181,6 +191,7 @@ function DayModal({
   byId: Map<string, Resident>;
   color: (id: string) => string;
   requests: GuardiaRequest[];
+  events: CamadaEvent[];
 }) {
   const [busy, setBusy] = useState(false);
   const bdays = residents.filter((r) => isBirthday(day.date, r));
@@ -225,8 +236,20 @@ function DayModal({
       await logActivity({ entity: 'guardias', summary: `Borró la guardia del ${where}`, changes: [`${name(s.actualResidentId)} → —`] });
     });
   };
+  const disabled = day.disabledSlots ?? [];
+  const usedSlots = new Set([...shifts.map((s) => s.slotIndex), ...disabled]);
+  const freeSlots = buildSlots([day]).map((s) => s.slotIndex).filter((i) => !usedSlots.has(i));
+  const askNote = () => {
+    const note = prompt('¿Quién la toma? (queda como nota del día)', DEFAULT_DISABLED_NOTE);
+    return note === null ? null : note.trim() || DEFAULT_DISABLED_NOTE;
+  };
+  const disable = (slotIndex: number, s?: Shift) => {
+    const note = askNote();
+    if (note !== null) run(() => disableSlot(day, slotIndex, note, s, name));
+  };
   const add = () => {
-    const slotIndex = shifts.length ? Math.max(...shifts.map((s) => s.slotIndex)) + 1 : 0;
+    let slotIndex = 0;
+    while (usedSlots.has(slotIndex)) slotIndex++;
     const id = `${day.date}_${slotIndex}`;
     const first = residents.find((r) => r.active)!;
     return run(async () => {
@@ -253,9 +276,16 @@ function DayModal({
             <Badge key={t}>{TAG_LABEL[t]}</Badge>
           ))}
         <Badge tone="info">R1 requeridos: {day.requiredR1}</Badge>
+        {disabled.length > 0 && <Badge>🚫 {disabled.length} la toma otra persona</Badge>}
       </div>
       {day.notes && <p className="text-sm bg-surface-2 rounded-lg p-2 mb-3">{day.notes}</p>}
       {bdays.length > 0 && <p className="text-sm mb-3">🎂 Cumple {bdays.map((b) => b.name).join(' y ')}</p>}
+      {events.map((e) => (
+        <p key={e.id} className="text-sm mb-3">
+          {eventEmoji(e)} {e.title}
+          {e.notes && <span className="text-text-dim"> · {e.notes}</span>}
+        </p>
+      ))}
 
       <h3 className="text-xs font-medium text-text-dim uppercase tracking-wide mb-2">De guardia</h3>
       <ul className="flex flex-col gap-2 mb-4">
@@ -297,16 +327,45 @@ function DayModal({
                 <button onClick={() => remove(s)} disabled={busy} className="text-xs text-danger underline">
                   borrar
                 </button>
+                <button
+                  onClick={() => disable(s.slotIndex, s)}
+                  disabled={busy}
+                  className="text-xs text-text-dim underline"
+                  title="Esta guardia no la hace un R1 (la toma un residente mayor, por ejemplo)"
+                >
+                  🚫 la toma otra persona
+                </button>
               </>
             )}
           </li>
         ))}
         {shifts.length === 0 && <li className="text-sm text-text-dim">Nadie asignado.</li>}
       </ul>
+      {disabled.length > 0 && (
+        <ul className="flex flex-col gap-1.5 mb-4">
+          {disabled.map((i) => (
+            <li key={i} className="text-sm flex items-center gap-2 flex-wrap text-text-dim">
+              <span>🚫 {day.disabledNote || DEFAULT_DISABLED_NOTE}</span>
+              {isAdmin && (
+                <button onClick={() => run(() => enableSlot(day, i))} disabled={busy} className="text-xs underline">
+                  volver a habilitar
+                </button>
+              )}
+            </li>
+          ))}
+        </ul>
+      )}
       {isAdmin && (
-        <button onClick={add} disabled={busy} className={clsx(btnSecondary, 'mb-4')}>
-          + Agregar R1 a este día
-        </button>
+        <div className="flex gap-2 flex-wrap mb-4">
+          <button onClick={add} disabled={busy} className={btnSecondary}>
+            + Agregar R1 a este día
+          </button>
+          {freeSlots.length > 0 && (
+            <button onClick={() => disable(freeSlots[0])} disabled={busy} className={btnSecondary}>
+              🚫 Deshabilitar un lugar libre
+            </button>
+          )}
+        </div>
       )}
 
       {requests.length > 0 && (

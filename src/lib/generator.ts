@@ -113,6 +113,8 @@ export interface ScheduleInput {
   fixed?: DraftSlot[];
   /** Feriados (de cualquier mes) para saber cuál es el próximo día hábil. */
   holidayDates?: string[];
+  /** Días en que alguien no puede por otra causa (p. ej. vacaciones por carril). */
+  unavailable?: { residentId: string; dates: string[]; reason: string }[];
 }
 
 export type IssueCode =
@@ -188,7 +190,12 @@ export function slotKey(date: string, slotIndex: number): string {
 export function buildSlots(days: ResolvedDay[]): { date: string; slotIndex: number }[] {
   return [...days]
     .sort((a, b) => a.date.localeCompare(b.date))
-    .flatMap((d) => Array.from({ length: d.requiredR1 }, (_, i) => ({ date: d.date, slotIndex: i })));
+    .flatMap((d) => {
+      const disabled = new Set(d.disabledSlots ?? []);
+      return Array.from({ length: d.requiredR1 + disabled.size }, (_, i) => i)
+        .filter((i) => !disabled.has(i))
+        .map((slotIndex) => ({ date: d.date, slotIndex }));
+    });
 }
 
 // ---------------------------------------------------------------------------
@@ -295,6 +302,10 @@ function compile(input: ScheduleInput): Problem {
   for (const req of bloqueos) {
     for (const date of req.dates) blockedReason.set(`${resIdx.get(req.residentId)}|${date}`, req.reason);
   }
+  for (const u of input.unavailable ?? []) {
+    const r = resIdx.get(u.residentId);
+    if (r !== undefined) for (const date of u.dates) blockedReason.set(`${r}|${date}`, u.reason);
+  }
 
   const eligible = slots.map((s) =>
     residents.map((res, r) => !blockedReason.has(`${r}|${s.date}`) && !isBirthdayBlocked(s.date, res)),
@@ -302,7 +313,7 @@ function compile(input: ScheduleInput): Problem {
   const reason = slots.map((s) =>
     residents.map((res, r) => {
       const b = blockedReason.get(`${r}|${s.date}`);
-      if (b !== undefined) return `bloqueo (${b || 'sin motivo'})`;
+      if (b !== undefined) return b === 'Vacaciones' ? 'vacaciones' : `bloqueo (${b || 'sin motivo'})`;
       if (isBirthdayBlocked(s.date, res)) return 'cumpleaños o víspera';
       return null;
     }),

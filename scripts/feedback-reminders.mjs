@@ -7,6 +7,8 @@
 // Las dos cosas abren la app en el formulario de esa guardia. Además pasa a
 // "realizada" las guardias ya pasadas. Igual, al entrar a la app, el Inicio
 // muestra el feedback pendiente.
+// El día 8 de cada mes, además, avisa a todas que carguen los pedidos del mes
+// siguiente.
 //
 // Variables de entorno (secrets del repo):
 //   FIREBASE_SERVICE_ACCOUNT  JSON de la cuenta de servicio de Firebase
@@ -18,13 +20,12 @@
 
 import { cert, initializeApp } from 'firebase-admin/app';
 import { getFirestore } from 'firebase-admin/firestore';
-import { getMessaging } from 'firebase-admin/messaging';
 import nodemailer from 'nodemailer';
 import { loadServiceAccount } from './credentials.mjs';
+import { APP_URL, monthLabel, pushTo } from './push.mjs';
 
 const { FIREBASE_SERVICE_ACCOUNT, SMTP_USER, SMTP_PASS } = process.env;
 const TEST_TO = (process.env.TEST_TO || '').trim().toLowerCase();
-const APP_URL = process.env.APP_URL || 'https://ari1402.github.io/Coordinacion-Guardias/';
 const DRY_RUN = process.env.DRY_RUN === 'true';
 const MAIL = Boolean(SMTP_USER && SMTP_PASS);
 
@@ -62,39 +63,11 @@ if (!MAIL) console.log('Sin secrets de Gmail (SMTP_USER / SMTP_PASS): solo notif
 
 initializeApp({ credential: cert(loadServiceAccount()) });
 const db = getFirestore();
-const messaging = getMessaging();
 const transport = MAIL
   ? nodemailer.createTransport({ host: 'smtp.gmail.com', port: 465, secure: true, auth: { user: SMTP_USER, pass: SMTP_PASS } })
   : null;
 
-// Tokens que FCM ya no reconoce (app desinstalada, permiso revocado…): se borran.
-const DEAD_TOKEN = new Set([
-  'messaging/registration-token-not-registered',
-  'messaging/invalid-registration-token',
-  'messaging/invalid-argument',
-]);
-
-/** Manda el push a todos los dispositivos de la residente. Devuelve cuántos llegaron. */
-async function push(residentId, { title, body, url, tag }) {
-  const snap = await db.collection('pushTokens').where('residentId', '==', residentId).get();
-  if (snap.empty) return 0;
-  const tokens = snap.docs.map((d) => d.id);
-  if (DRY_RUN) return tokens.length;
-  const res = await messaging.sendEachForMulticast({
-    tokens,
-    // Solo datos: el service worker de la app (public/sw.js) arma la notificación.
-    data: { title, body, url, tag },
-    webpush: { headers: { Urgency: 'high', TTL: String(12 * 3600) } },
-  });
-  await Promise.all(
-    res.responses.map(async (r, i) => {
-      if (r.success) return;
-      console.log(`  push falló (${snap.docs[i].get('device') ?? 'dispositivo'}): ${r.error?.code} ${r.error?.message}`);
-      if (DEAD_TOKEN.has(r.error?.code)) await snap.docs[i].ref.delete();
-    }),
-  );
-  return res.successCount;
-}
+const push = (residentId, payload) => pushTo(db, residentId, payload, { dryRun: DRY_RUN });
 
 async function remind(resident, shiftId, date, { test = false } = {}) {
   const firstName = (resident.name || resident.shortName || '').split(' ')[0];
@@ -155,6 +128,26 @@ for (const docSnap of shiftsSnap.docs) {
 
   const { pushed, mailed } = await remind({ id: res.id, ...res.data() }, docSnap.id, shift.date);
   if (pushed || mailed) reminded++;
+}
+
+// Día 8: pedidos del mes siguiente.
+if (todayAR.slice(8) === '08') {
+  const nextMonth = (() => {
+    const d = new Date(`${todayAR.slice(0, 7)}-01T00:00:00Z`);
+    d.setUTCMonth(d.getUTCMonth() + 1);
+    return d.toISOString().slice(0, 7);
+  })();
+  const residents = await db.collection('residents').where('active', '==', true).get();
+  let n = 0;
+  for (const r of residents.docs) {
+    n += await push(r.id, {
+      title: `📝 Pedidos de ${monthLabel(nextMonth)}`,
+      body: 'Ya podés cargar tus pedidos: días que querés, que no podés o que necesitás el posguardia.',
+      url: `${APP_URL}#/pedidos`,
+      tag: `pedidos-${nextMonth}`,
+    });
+  }
+  console.log(`Recordatorio de pedidos de ${nextMonth}: ${n} push.`);
 }
 
 console.log(`Listo: ${reminded} recordatorio(s) ${DRY_RUN ? 'a mandar' : 'enviados'}, ${marked} guardia(s) pasadas a "realizada".`);

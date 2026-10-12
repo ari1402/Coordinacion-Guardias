@@ -8,6 +8,7 @@ export const TAG_LABEL: Partial<Record<DayTag, string>> = {
   sin_cobertura: 'Sin R1',
   sabado_finde_largo: 'Sáb. finde largo',
   sabado_comun: 'Sábado común',
+  r_mayores: 'R mayor',
 };
 
 export const TAG_EMOJI: Partial<Record<DayTag, string>> = {
@@ -15,6 +16,7 @@ export const TAG_EMOJI: Partial<Record<DayTag, string>> = {
   preferiado: '⏳',
   finde_xl: '🌟',
   jueves_feliz: '😊',
+  r_mayores: '🚫',
 };
 
 export function dayBgClass(day: ResolvedDay): string {

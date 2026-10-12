@@ -72,7 +72,19 @@ el Inicio muestra siempre el feedback pendiente.
 de esa cuenta, requiere verificación en 2 pasos), también se manda un mail con
 botones "Dormí / No dormí".
 
-### 3. Feriados
+### 3. Notificaciones de la app
+
+`.github/workflows/notificaciones.yml` corre cada 10 minutos y manda:
+
+- **Al publicar un mes** (o republicarlo): push a quienes les cambió alguna
+  guardia, para que las pidan en HIBA 2 y confirmen en la app si están OK.
+- **Si alguien responde que no está OK**: push a las admins (y queda en
+  Admin → Conformidad y en el Inicio de las admins).
+
+El recordatorio diario de las 8 AM además avisa el **día 8 de cada mes** que se
+carguen los pedidos del mes siguiente.
+
+### 4. Feriados
 
 Se sincronizan solos en cada publicación (año actual y siguiente: Ministerio
 del Interior vía ArgentinaDatos + Día de la Sanidad). También se pueden

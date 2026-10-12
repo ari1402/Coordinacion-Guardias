@@ -3,13 +3,17 @@ import { useMemo } from 'react';
 import { useCollection } from './useCollection';
 import type {
   CalendarDay,
+  CamadaEvent,
   CamadaTask,
   GuardiaRequest,
   InfoNote,
   LinkItem,
+  MonthAck,
   MonthConfig,
+  Publication,
   Raffle,
   Resident,
+  Rotation,
   ScheduleDraft,
   Shift,
   ShiftFeedback,
@@ -103,4 +107,26 @@ export function usePushTokens(enabled: boolean) {
 export function useDrafts(enabled: boolean) {
   const { data, loading, error } = useCollection<ScheduleDraft>(enabled ? 'scheduleDrafts' : '', []);
   return { drafts: enabled ? data : [], loading: enabled && loading, error };
+}
+
+export function useRotations() {
+  const { data, loading } = useCollection<Rotation>('rotations', []);
+  return { rotations: data, loading };
+}
+
+export function useEvents() {
+  const { data, loading } = useCollection<CamadaEvent>('events', []);
+  return { events: data, loading };
+}
+
+export function usePublications() {
+  const { data } = useCollection<Publication>('publications', []);
+  return data;
+}
+
+/** Conformidad con las guardias del mes: las admins ven todas; cada una, las suyas. */
+export function useAcks(residentId?: string) {
+  const constraints = residentId ? [where('residentId', '==', residentId)] : [];
+  const { data } = useCollection<MonthAck>('acks', constraints, [residentId]);
+  return data;
 }

@@ -91,6 +91,12 @@ export interface CalendarDay {
   holidaySource?: 'oficial' | 'sanidad' | 'local' | 'manual';
   /** Si está definido, pisa el R1 requerido por día de semana. */
   requiredR1Override?: number | null;
+  /**
+   * Lugares (índice de slot) que ese día toma otra persona, p. ej. residentes
+   * mayores: no se asignan a R1 y no cuentan como faltantes.
+   */
+  disabledSlots?: number[];
+  disabledNote?: string | null;
   notes?: string;
 }
 
@@ -102,14 +108,19 @@ export type DayTag =
   | 'sin_cobertura'
   | 'finde'
   | 'sabado_comun'
-  | 'sabado_finde_largo';
+  | 'sabado_finde_largo'
+  | 'r_mayores';
 
 /** Día ya resuelto con sus etiquetas derivadas, listo para UI/algoritmo. */
 export interface ResolvedDay {
   id: string;
   date: string;
   weekday: Weekday;
+  /** R1 que hay que asignar (ya descontados los lugares deshabilitados). */
   requiredR1: number;
+  /** Índices de slot deshabilitados (los toma otra persona). */
+  disabledSlots?: number[];
+  disabledNote?: string;
   isHoliday: boolean;
   holidayName?: string;
   tags: DayTag[];
@@ -270,6 +281,53 @@ export interface InfoNote {
   createdBy: string;
   createdAt: string;
   updatedAt?: string;
+}
+
+/** Carril (rotación) de cada R1 por mes. Doc id = residentId. */
+export interface Rotation {
+  id: string;
+  /** "YYYY-MM" -> código del carril (QC, UCA, Vacaciones…). */
+  months: Record<string, string>;
+  updatedAt?: string;
+}
+
+/** Evento de la camada (p. ej. clases de AAARBA): se ve en el calendario y en Inicio. */
+export interface CamadaEvent {
+  id: string;
+  title: string;
+  dates: string[];
+  category?: string;
+  notes?: string;
+  createdBy: string;
+  createdAt: string;
+}
+
+/**
+ * Publicación de un mes. `pending` marca, por residente, desde cuándo tiene
+ * que confirmar sus guardias (se actualiza cuando una republicación le cambia
+ * alguna). `notified` lo pone en true el script que manda el push.
+ */
+export interface Publication {
+  id: string; // "YYYY-MM"
+  publishedAt: string;
+  publishedBy: string;
+  pending: Record<string, string>;
+  lastAffected: string[];
+  notified: boolean;
+}
+
+/** "¿Estás OK con tus guardias del mes?" Doc id = "YYYY-MM_residentId". */
+export interface MonthAck {
+  id: string;
+  month: string;
+  residentId: string;
+  ok: boolean;
+  comment?: string;
+  at: string;
+  /** El script ya avisó a las admins (solo aplica a ok = false). */
+  notified: boolean;
+  resolvedAt?: string;
+  resolvedBy?: string;
 }
 
 export type RaffleStatus = 'pendiente' | 'sorteado';

@@ -108,16 +108,18 @@ export interface EffectiveMonthConfig {
 
 /**
  * Config efectiva de un mes: la propia si existe; si no, la del mes anterior
- * más cercano que tenga. Las notas no se heredan (son del mes puntual).
+ * más cercano que tenga. Las reglas se heredan aparte (de la config más
+ * cercana que tenga reglas), así un mes que solo cambia los R1 por día no
+ * pierde las reglas. Las notas no se heredan (son del mes puntual).
  */
 export function effectiveMonthConfig(key: string, configs: MonthConfig[]): EffectiveMonthConfig {
   const own = configs.find((c) => c.id === key);
-  const source =
-    own ??
-    [...configs].filter((c) => c.id < key).sort((a, b) => b.id.localeCompare(a.id))[0];
+  const previous = [...configs].filter((c) => c.id <= key).sort((a, b) => b.id.localeCompare(a.id));
+  const source = own ?? previous[0];
+  const rulesSource = previous.find((c) => c.rules && Object.keys(c.rules).length > 0);
   return {
     weekdayRequirements: source?.weekdayRequirements ?? DEFAULT_WEEKDAY_REQUIREMENTS,
-    rules: { ...DEFAULT_RULES, ...(source?.rules ?? {}) },
+    rules: { ...DEFAULT_RULES, ...(rulesSource?.rules ?? {}) },
     notes: own?.notes ?? '',
     inheritedFrom: own ? null : (source?.id ?? null),
     hasOwnConfig: !!own,
@@ -132,13 +134,16 @@ function resolveDay(
 ): ResolvedDay {
   const weekday = isoWeekday(dateISO);
   const override = stored?.requiredR1Override;
-  const requiredR1 =
+  const totalSlots =
     override !== undefined && override !== null ? override : weekdayReqs[WEEKDAY_KEYS[weekday]];
+  const disabledSlots = (stored?.disabledSlots ?? []).filter((i) => i < totalSlots).sort((a, b) => a - b);
+  const requiredR1 = totalSlots - disabledSlots.length;
   const isHoliday = stored?.isHoliday ?? false;
   const tags: DayTag[] = [];
 
   if (isHoliday) tags.push('feriado');
   if (requiredR1 === 0) tags.push('sin_cobertura');
+  if (disabledSlots.length) tags.push('r_mayores');
   if (weekday === 5 || weekday === 6) tags.push('finde');
 
   // Preferiado: día no feriado inmediatamente anterior al inicio de un
@@ -159,6 +164,7 @@ function resolveDay(
     date: dateISO,
     weekday,
     requiredR1,
+    ...(disabledSlots.length ? { disabledSlots, disabledNote: stored?.disabledNote ?? undefined } : {}),
     isHoliday,
     holidayName: stored?.holidayName,
     tags,

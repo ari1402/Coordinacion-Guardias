@@ -1,7 +1,8 @@
 import { useMemo, useState } from 'react';
 import { Bar, BarChart, CartesianGrid, Legend, Line, LineChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts';
 import { Card, Dot, PageHeader } from '../components/ui';
-import { useAllShifts, useCalendarData, useRequests, useResidents } from '../hooks/data';
+import { useAllShifts, useCalendarData, useRequests, useResidents, useRotations } from '../hooks/data';
+import { awayMonths } from '../lib/rotations';
 import { useColors } from '../hooks/useColors';
 import { monthLabel, resolveMonths } from '../lib/dates';
 import { computeAllEquityCounters, monthsWithShifts, resolvePeriod } from '../lib/equity';
@@ -52,6 +53,7 @@ const tooltipStyle = {
 
 export default function Metricas() {
   const { residents } = useResidents();
+  const { rotations } = useRotations();
   const active = useMemo(() => residents.filter((r) => r.active), [residents]);
   const color = useColors(residents);
   const { shifts, loading } = useAllShifts();
@@ -67,8 +69,8 @@ export default function Metricas() {
     [period, valid, storedDays, monthConfigs],
   );
   const counters = useMemo(
-    () => computeAllEquityCounters(active.map((r) => r.id), periodShifts, days),
-    [active, periodShifts, days],
+    () => computeAllEquityCounters(active.map((r) => r.id), periodShifts, days, awayMonths(rotations)),
+    [active, periodShifts, days, rotations],
   );
 
   const stats = COLUMNS.map((c) => {

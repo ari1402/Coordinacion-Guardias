@@ -12,7 +12,10 @@ export type ActivityEntity =
   | 'tarea'
   | 'nota'
   | 'link'
-  | 'feedback';
+  | 'feedback'
+  | 'carril'
+  | 'evento'
+  | 'conformidad';
 
 export interface ActivityEntry {
   id: string;

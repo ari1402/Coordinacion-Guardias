@@ -6,11 +6,14 @@ import { addDaysISO, gapsBetween, hasTag, monthKey, monthsBetween, resolveMonths
  * (quien realmente hizo la guardia), así un cambio se refleja en el
  * histórico. `days` define el período: solo se cuentan fines de semana
  * libres de esos días, y deben incluir los días de todas las guardias.
+ * `away` = meses en que no hace guardias (vacaciones): sus findes no cuentan
+ * como "findes libres".
  */
 export function computeEquityCounters(
   residentId: string,
   shifts: Shift[],
   days: ResolvedDay[],
+  away?: Set<string>,
 ): EquityCounters {
   const dayById = new Map(days.map((d) => [d.id, d]));
   const mine = shifts
@@ -60,6 +63,7 @@ export function computeEquityCounters(
 
   for (const day of days) {
     if (day.weekday !== 5) continue; // un finde se evalúa una vez, en su sábado
+    if (away?.has(monthKey(day.date))) continue;
     const free = [-1, 0, 1].every((d) => !occupied.has(addDaysISO(day.date, d)));
     if (free) {
       c.findesLibresA++;
@@ -79,8 +83,9 @@ export function computeAllEquityCounters(
   residentIds: string[],
   shifts: Shift[],
   days: ResolvedDay[],
+  away?: Record<string, Set<string>>,
 ): Record<string, EquityCounters> {
-  return Object.fromEntries(residentIds.map((id) => [id, computeEquityCounters(id, shifts, days)]));
+  return Object.fromEntries(residentIds.map((id) => [id, computeEquityCounters(id, shifts, days, away?.[id])]));
 }
 
 /** Meses (ordenados) que tienen al menos una guardia cargada. */

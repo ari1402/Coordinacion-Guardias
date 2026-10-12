@@ -98,6 +98,35 @@ describe('generador', () => {
     expect(costa).not.toContain('2026-11-14');
   });
 
+  it('no asigna a quien está de vacaciones por carril', () => {
+    const unavailable = ['funes', 'espina', 'bravo'].map((residentId) => ({
+      residentId,
+      dates: nov.map((d) => d.date),
+      reason: 'Vacaciones',
+    }));
+    const [opt] = generateOptions({ ...base, unavailable }, { seed: 5, profiles: ['equidad'] });
+    const used = new Set(opt.slots.map((s) => s.residentId));
+    for (const id of ['funes', 'espina', 'bravo']) expect(used.has(id)).toBe(false);
+    expect(opt.slots.every((s) => s.residentId)).toBe(true);
+    expect(opt.evaluation.issues.filter((i) => i.code === 'no_disponible')).toHaveLength(0);
+  });
+
+  it('una guardia deshabilitada (la toma un R mayor) no se asigna ni falta', () => {
+    const stored: CalendarDay[] = [
+      ...holidays,
+      { id: '2026-11-05', date: '2026-11-05', isHoliday: false, disabledSlots: [0], disabledNote: 'R2' },
+      { id: '2026-11-06', date: '2026-11-06', isHoliday: false, requiredR1Override: 2, disabledSlots: [0] },
+    ];
+    const days = resolveMonth('2026-11', stored, configs);
+    const d5 = days.find((d) => d.date === '2026-11-05')!;
+    expect(d5.requiredR1).toBe(0);
+    expect(hasTag(d5, 'r_mayores')).toBe(true);
+    const [opt] = generateOptions({ ...base, days }, { seed: 6, profiles: ['equidad'] });
+    expect(opt.slots.some((s) => s.date === '2026-11-05')).toBe(false);
+    expect(opt.slots.filter((s) => s.date === '2026-11-06').map((s) => s.slotIndex)).toEqual([1]);
+    expect(opt.evaluation.summary.uncovered).toBe(0);
+  });
+
   it('respeta bloqueos y cumple pedidos fuertes de "quiero esta guardia"', () => {
     const requests = [
       req({ residentId: 'bravo', type: 'bloqueo', dates: ['2026-11-06', '2026-11-07', '2026-11-08', '2026-11-14', '2026-11-15'] }),

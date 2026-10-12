@@ -3,16 +3,18 @@ import { addDoc, collection, deleteDoc, doc, updateDoc } from 'firebase/firestor
 import { useMemo, useState, type ReactNode } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import Badge from '../components/Badge';
+import { RotationTable, rotationMonths } from '../components/Carriles';
+import EventsPanel from '../components/Eventos';
 import { Card, Empty, PageHeader, Segmented, btnPrimary, btnSecondary, inputCls } from '../components/ui';
 import { useAuthContext } from '../context/AuthContext';
 import { db } from '../firebase';
-import { useLinks, useNotes, useResidents, useResidentsById, useTasks } from '../hooks/data';
+import { useLinks, useNotes, useResidents, useResidentsById, useRotations, useTasks } from '../hooks/data';
 import { diffFields, logActivity } from '../lib/activity';
 import { shortDateLabel, todayISO } from '../lib/dates';
 import type { CamadaTask, InfoNote, LinkItem, NoteCategory, TaskStatus } from '../types';
 import { NOTE_CATEGORIES } from '../types';
 
-type Tab = 'tareas' | 'info' | 'links';
+type Tab = 'tareas' | 'eventos' | 'carriles' | 'info' | 'links';
 
 export default function Camada() {
   const [params, setParams] = useSearchParams();
@@ -21,13 +23,15 @@ export default function Camada() {
     <div className="flex flex-col gap-4">
       <PageHeader
         title="Camada"
-        subtitle="Todo lo de la camada en un lugar: pendientes, info (AAARBA, cursos, rotaciones) y links."
+        subtitle="Todo lo de la camada en un lugar: pendientes, eventos (AAARBA, cursos), carriles, info y links."
         actions={
           <Segmented<Tab>
             value={tab}
             onChange={(t) => setParams({ tab: t })}
             options={[
               { value: 'tareas', label: '✅ Tareas' },
+              { value: 'eventos', label: '📆 Eventos' },
+              { value: 'carriles', label: '🗺️ Carriles' },
               { value: 'info', label: '📚 Info' },
               { value: 'links', label: '🔗 Links' },
             ]}
@@ -35,6 +39,8 @@ export default function Camada() {
         }
       />
       {tab === 'tareas' && <Tareas />}
+      {tab === 'eventos' && <EventsPanel />}
+      {tab === 'carriles' && <Carriles />}
       {tab === 'info' && <Info />}
       {tab === 'links' && <Links />}
     </div>
@@ -42,6 +48,26 @@ export default function Camada() {
 }
 
 const now = () => new Date().toISOString();
+
+function Carriles() {
+  const { isAdmin } = useAuthContext();
+  const { residents } = useResidents();
+  const { rotations, loading } = useRotations();
+  const active = residents.filter((r) => r.active);
+  if (loading) return <Empty>Cargando…</Empty>;
+  return (
+    <Card
+      title="Carriles de la camada"
+      subtitle={
+        isAdmin
+          ? 'Tocá una celda para cambiar el carril. Vacaciones = ese mes no se le asignan guardias.'
+          : 'Rotación de cada una por mes. En Vacaciones no se asignan guardias.'
+      }
+    >
+      <RotationTable residents={active} rotations={rotations} months={rotationMonths(rotations)} editable={isAdmin} />
+    </Card>
+  );
+}
 
 function Linkify({ text }: { text: string }) {
   const parts = text.split(/(https?:\/\/[^\s]+)/g);

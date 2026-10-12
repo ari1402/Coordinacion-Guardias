@@ -5,7 +5,9 @@ import { Link, useSearchParams } from 'react-router-dom';
 import Badge from '../components/Badge';
 import { Card, Dot, Empty, MonthNav, PageHeader, Segmented, btnPrimary, btnSecondary, inputBase, inputCls } from '../components/ui';
 import { db } from '../firebase';
-import { useActivity, useCalendarData, useFeedback, usePushTokens, useResidents, useResidentsById } from '../hooks/data';
+import { useAcks, useActivity, useCalendarData, useFeedback, usePublications, usePushTokens, useResidents, useResidentsById } from '../hooks/data';
+import { AckAlerts } from '../components/Conformidad';
+import { useAuthContext } from '../context/AuthContext';
 import { useColors } from '../hooks/useColors';
 import { currentMonthKey } from '../hooks/useMonth';
 import { effectiveMonthConfig, isoWeekday, monthLabel, resolveMonth, shiftMonthKey, shortDateLabel } from '../lib/dates';
@@ -15,7 +17,7 @@ import { TAG_EMOJI } from '../lib/labels';
 import type { CalendarDay, MonthConfig, MonthRules, Resident, Role, WeekdayRequirements } from '../types';
 import { WEEKDAY_KEYS, WEEKDAY_LABELS } from '../types';
 
-type Tab = 'reglas' | 'residentes' | 'feedback' | 'historial';
+type Tab = 'reglas' | 'residentes' | 'conformidad' | 'feedback' | 'historial';
 
 const RULE_LABELS: Record<string, string> = {
   mon: 'R1 lunes',
@@ -51,6 +53,7 @@ export default function Admin() {
               options={[
                 { value: 'reglas', label: '📐 Reglas del mes' },
                 { value: 'residentes', label: '👥 Residentes' },
+                { value: 'conformidad', label: '👍 Conformidad' },
                 { value: 'feedback', label: '💬 Feedback' },
                 { value: 'historial', label: '🕓 Historial' },
               ]}
@@ -63,6 +66,7 @@ export default function Admin() {
       />
       {tab === 'reglas' && <Reglas initialMonth={params.get('mes') ?? shiftMonthKey(currentMonthKey(), 1)} />}
       {tab === 'residentes' && <Residentes />}
+      {tab === 'conformidad' && <Conformidad />}
       {tab === 'feedback' && <FeedbackAdmin />}
       {tab === 'historial' && <Historial />}
     </div>
@@ -529,6 +533,76 @@ function FeedbackAdmin() {
   );
 }
 
+// ---------------------------------------------------------------- Conformidad
+
+function Conformidad() {
+  const { resident: me } = useAuthContext();
+  const { residents } = useResidents();
+  const byId = useResidentsById(residents);
+  const publications = usePublications();
+  const acks = useAcks();
+  const pubs = [...publications].sort((a, b) => b.id.localeCompare(a.id));
+
+  return (
+    <div className="flex flex-col gap-4">
+      {me && <AckAlerts acks={acks} byId={byId} meId={me.id} />}
+      <Card
+        title="¿Están OK con sus guardias?"
+        subtitle="Al publicar (o republicar) un mes, a quienes les cambió algo les llega un push y en el Inicio les aparece la pregunta. Si alguien dice que no, les llega un push a las admins."
+      >
+        {pubs.length === 0 ? (
+          <Empty>Todavía no se publicó ningún mes con el generador.</Empty>
+        ) : (
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="text-xs text-text-dim border-b border-border">
+                  <th className="text-left font-medium py-1.5">R1</th>
+                  {pubs.map((p) => (
+                    <th key={p.id} className="text-left font-medium capitalize px-2">
+                      {monthLabel(p.id)}
+                    </th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody>
+                {residents
+                  .filter((r) => r.active)
+                  .map((r) => (
+                    <tr key={r.id} className="border-b border-border last:border-0 align-top">
+                      <td className="py-1.5 whitespace-nowrap">{r.shortName}</td>
+                      {pubs.map((p) => {
+                        const since = p.pending?.[r.id];
+                        const ack = acks.find((a) => a.id === `${p.id}_${r.id}`);
+                        const current = ack && since && ack.at >= since;
+                        return (
+                          <td key={p.id} className="px-2 py-1.5">
+                            {!since ? (
+                              <span className="text-text-dim">—</span>
+                            ) : !current ? (
+                              <Badge tone="warning">sin responder</Badge>
+                            ) : ack.ok ? (
+                              <Badge tone="good">👍 OK</Badge>
+                            ) : (
+                              <span className="flex flex-col gap-0.5">
+                                <Badge tone={ack.resolvedAt ? 'neutral' : 'critical'}>{ack.resolvedAt ? 'resuelto' : '👎 pidió cambio'}</Badge>
+                                <span className="text-xs text-text-dim max-w-[16rem]">“{ack.comment}”</span>
+                              </span>
+                            )}
+                          </td>
+                        );
+                      })}
+                    </tr>
+                  ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </Card>
+    </div>
+  );
+}
+
 // ---------------------------------------------------------------- Historial
 
 const ENTITY_LABEL: Record<ActivityEntity, string> = {
@@ -543,6 +617,9 @@ const ENTITY_LABEL: Record<ActivityEntity, string> = {
   nota: '📚 Notas',
   link: '🔗 Links',
   feedback: '🌙 Feedback',
+  carril: '🗺️ Carriles',
+  evento: '📆 Eventos',
+  conformidad: '👍 Conformidad',
 };
 
 function Historial() {

@@ -146,6 +146,39 @@ service cloud.firestore {
       allow update, delete: if false;
     }
 
+    // Carriles (rotación de cada R1 por mes): los ve todo el grupo, los cargan las admins.
+    match /rotations/{uid} {
+      allow read: if isResident();
+      allow write: if isAdmin();
+    }
+
+    // Eventos de la camada (AAARBA, cursos…).
+    match /events/{id} {
+      allow read: if isResident();
+      allow create: if isResident() && createdByMe() && request.resource.data.dates is list;
+      allow update: if (isAdmin() || isSelf(resource.data.createdBy)) && keepsCreator();
+      allow delete: if isAdmin() || isSelf(resource.data.createdBy);
+    }
+
+    // Publicaciones de cada mes (quién tiene que confirmar sus guardias).
+    match /publications/{month} {
+      allow read: if isResident();
+      allow write: if isAdmin();
+    }
+
+    // "¿Estás OK con tus guardias?" (id = mes_uid). Cada una responde la suya;
+    // las admins las ven todas y marcan resueltos los pedidos de corrección.
+    match /acks/{id} {
+      allow read: if isAdmin() || (isSignedIn() && resource.data.residentId == request.auth.uid);
+      allow create, update: if isResident()
+        && id == request.resource.data.month + '_' + request.auth.uid
+        && request.resource.data.residentId == request.auth.uid
+        && request.resource.data.notified == false
+        && request.resource.data.keys().hasOnly(['id', 'month', 'residentId', 'ok', 'comment', 'at', 'notified']);
+      allow update: if isAdmin() && onlyChanged(['resolvedAt', 'resolvedBy']);
+      allow delete: if isAdmin();
+    }
+
     // Tokens de notificaciones push (doc id = token FCM del dispositivo). Cada
     // una registra solo los suyos; un token es imposible de adivinar, así que
     // se permite reasignarlo si en ese dispositivo entra otra persona. Las

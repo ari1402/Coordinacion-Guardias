@@ -1,7 +1,7 @@
 import clsx from 'clsx';
 import { deleteDoc, doc } from 'firebase/firestore';
 import { useMemo, useState } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useSearchParams } from 'react-router-dom';
 import Badge from '../components/Badge';
 import ImportTextModal from '../components/ImportTextModal';
 import PersonBreakdownGrid from '../components/PersonBreakdown';
@@ -16,6 +16,7 @@ import {
   useRequests,
   useResidents,
   useResidentsById,
+  useRotations,
 } from '../hooks/data';
 import { useColors } from '../hooks/useColors';
 import { currentMonthKey, useMonth } from '../hooks/useMonth';
@@ -40,6 +41,8 @@ import {
 } from '../lib/generator';
 import { logActivity } from '../lib/activity';
 import { buildBreakdown } from '../lib/breakdown';
+import { DEFAULT_DISABLED_NOTE, disableSlot, enableSlot } from '../lib/disableSlot';
+import { awayMonths } from '../lib/rotations';
 import { TAG_EMOJI, dayBgClass } from '../lib/labels';
 import { createRaffle, drawRaffle, winners } from '../lib/raffles';
 import {
@@ -56,7 +59,8 @@ import { WEEKDAY_KEYS, WEEKDAY_SHORT, requestIntent, requestShiftDates } from '.
 
 export default function Generador() {
   const { resident: me } = useAuthContext();
-  const { monthKey, next, prev } = useMonth(shiftMonthKey(currentMonthKey(), 1));
+  const [params] = useSearchParams();
+  const { monthKey, next, prev } = useMonth(params.get('mes') ?? shiftMonthKey(currentMonthKey(), 1));
   const { residents } = useResidents();
   const active = useMemo(() => residents.filter((r) => r.active), [residents]);
   const byId = useResidentsById(residents);
@@ -67,6 +71,7 @@ export default function Generador() {
   const { requests } = useRequests();
   const { raffles } = useRaffles();
   const { drafts, loading: ld } = useDrafts(true);
+  const { rotations } = useRotations();
 
   const [edits, setEdits] = useState<Record<string, DraftSlot[]>>({});
   const [options, setOptions] = useState<{ month: string; list: GeneratedOption[] } | null>(null);
@@ -104,6 +109,12 @@ export default function Generador() {
     [requests, monthKey],
   );
 
+  // Quien tiene Vacaciones en su carril ese mes no hace guardias.
+  const onVacation = useMemo(() => {
+    const away = awayMonths(rotations);
+    return active.filter((r) => away[r.id]?.has(monthKey));
+  }, [rotations, active, monthKey]);
+
   const input: ScheduleInput = useMemo(
     () => ({
       days,
@@ -112,8 +123,9 @@ export default function Generador() {
       rules: cfg.rules,
       prior,
       holidayDates: storedDays.filter((d) => d.isHoliday).map((d) => d.date),
+      unavailable: onVacation.map((r) => ({ residentId: r.id, dates: days.map((d) => d.date), reason: 'Vacaciones' })),
     }),
-    [days, active, monthRequests, cfg.rules, prior, storedDays],
+    [days, active, monthRequests, cfg.rules, prior, storedDays, onVacation],
   );
 
   const source: 'borrador' | 'publicado' | 'vacío' = savedDraft ? 'borrador' : monthShifts.length ? 'publicado' : 'vacío';
@@ -195,7 +207,7 @@ export default function Generador() {
         (evaluation.summary.raffles ? `\n\nHay ${evaluation.summary.raffles} guardia(s) en sorteo pendiente: quedan sin asignar hasta que se sorteen.` : '') +
         '\n\n¿Seguimos?';
       if (!confirm(msg)) return;
-      await publish(plan, monthKey);
+      await publish(plan, monthKey, me!.id);
       if (savedDraft) await deleteDraft(monthKey);
       clearEdits();
     });
@@ -219,6 +231,7 @@ export default function Generador() {
         else on.add(r.residentId);
       }
       for (const res of active) if (isBirthdayBlocked(d.date, res)) blocked.add(res.id);
+      for (const res of onVacation) blocked.add(res.id);
       info.set(d.date, {
         blocked,
         off,
@@ -227,7 +240,7 @@ export default function Generador() {
       });
     }
     return info;
-  }, [days, monthRequests, active]);
+  }, [days, monthRequests, active, onVacation]);
 
   const leading = days[0]?.weekday ?? 0;
 
@@ -334,8 +347,15 @@ export default function Generador() {
 
           <Card
             title={`Editor — ${monthLabel(monthKey)}`}
-            subtitle="Cambiar una guardia a mano la fija (🔒) para que regenerar no la toque. ⛔ no puede · 🙅 pidió no estar · 🙋 pidió estar (o necesita el posguardia) · 🎂 cumple."
+            subtitle="Cambiar una guardia a mano la fija (🔒) para que regenerar no la toque. 🚫 = la toma otra persona (p. ej. residente mayor). ⛔ no puede · 🙅 pidió no estar · 🙋 pidió estar (o necesita el posguardia) · 🎂 cumple."
           >
+            {onVacation.length > 0 && (
+              <p className="text-sm bg-warn-soft text-warn rounded-lg px-3 py-2 mb-3">
+                🏖️ De vacaciones este mes (según los carriles): <b>{onVacation.map((r) => r.shortName).join(', ')}</b>. El
+                generador no les asigna guardias
+                {cfg.rules.maxPerPerson > 0 && <> — revisá el tope de {cfg.rules.maxPerPerson} por persona en las reglas del mes</>}.
+              </p>
+            )}
             <div className="overflow-x-auto -mx-1 px-1">
               <div className="grid grid-cols-7 gap-1.5 min-w-[880px]">
                 {WEEKDAY_KEYS.map((_, i) => (
@@ -361,6 +381,11 @@ export default function Generador() {
                     onToggleLock={(key, locked) => updateSlot(key, { locked })}
                     onRaffle={setRaffleSlot}
                     onDraw={(r) => withBusy('Sorteando…', async () => void (await drawRaffle(r, me!.id, nameOf)))}
+                    onDisable={(slotIndex) => {
+                      const note = prompt('Esta guardia no la hace un R1. ¿Quién la toma?', DEFAULT_DISABLED_NOTE);
+                      if (note !== null) withBusy('Guardando…', () => disableSlot(day, slotIndex, note.trim() || DEFAULT_DISABLED_NOTE));
+                    }}
+                    onEnable={(slotIndex) => withBusy('Guardando…', () => enableSlot(day, slotIndex))}
                   />
                 ))}
               </div>
@@ -607,6 +632,8 @@ function DayCell({
   onToggleLock,
   onRaffle,
   onDraw,
+  onDisable,
+  onEnable,
 }: {
   day: ResolvedDay;
   slots: DraftSlot[];
@@ -620,6 +647,8 @@ function DayCell({
   onToggleLock: (key: string, locked: boolean) => void;
   onRaffle: (slot: DraftSlot) => void;
   onDraw: (r: Raffle) => void;
+  onDisable: (slotIndex: number) => void;
+  onEnable: (slotIndex: number) => void;
 }) {
   const names = (ids: Set<string>) => [...ids].map((id) => byId.get(id)?.shortName).filter(Boolean).join(', ');
   const emojis = day.tags.map((t) => TAG_EMOJI[t]).filter(Boolean).join('');
@@ -685,12 +714,29 @@ function DayCell({
             >
               🔒
             </button>
-            <button onClick={() => onRaffle(s)} className="text-[11px] pr-1 opacity-30 hover:opacity-80" title="Sortear esta guardia">
+            <button onClick={() => onRaffle(s)} className="text-[11px] opacity-30 hover:opacity-80" title="Sortear esta guardia">
               🎲
+            </button>
+            <button
+              onClick={() => onDisable(s.slotIndex)}
+              className="text-[11px] pr-1 opacity-30 hover:opacity-80"
+              title="Deshabilitar: la toma otra persona (residente mayor)"
+            >
+              🚫
             </button>
           </div>
         );
       })}
+      {(day.disabledSlots ?? []).map((i) => (
+        <div key={`d${i}`} className="rounded-lg border border-dashed border-border px-1.5 py-1 text-[10px] text-text-dim flex items-center justify-between gap-1">
+          <span className="truncate" title={day.disabledNote ?? ''}>
+            🚫 {day.disabledNote || 'Otra persona'}
+          </span>
+          <button onClick={() => onEnable(i)} className="underline shrink-0" title="Volver a habilitar para R1">
+            ↺
+          </button>
+        </div>
+      ))}
       {(info.blocked.size > 0 || info.off.size > 0 || info.on.size > 0) && (
         <div className="text-[10px] text-text-dim leading-tight mt-auto">
           {info.blocked.size > 0 && <p>⛔ {names(info.blocked)}</p>}

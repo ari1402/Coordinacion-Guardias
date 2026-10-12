@@ -2,28 +2,36 @@ import clsx from 'clsx';
 import { useMemo } from 'react';
 import { Link } from 'react-router-dom';
 import Badge from '../components/Badge';
+import { MyRotationStrip, rotationMonths } from '../components/Carriles';
+import { AckAlerts, MonthAckCard, pendingAcks } from '../components/Conformidad';
+import { eventEmoji, upcomingEventDates } from '../components/Eventos';
 import FeedbackForm from '../components/FeedbackForm';
 import PushCard from '../components/PushCard';
 import RangeBar from '../components/RangeBar';
 import { Card, Dot, Empty, ResidentChip } from '../components/ui';
 import { useAuthContext } from '../context/AuthContext';
 import {
+  useAcks,
   useAllShifts,
   useCalendarData,
+  useEvents,
   useFeedback,
   useLinks,
   useRaffles,
   useRequests,
   useResidents,
   useResidentsById,
+  useRotations,
+  usePublications,
   useTasks,
 } from '../hooks/data';
 import { useColors } from '../hooks/useColors';
 import { upcomingBirthdays } from '../lib/birthdays';
-import { addDaysISO, diffDays, gapsBetween, monthKey, resolveMonth, shortDateLabel, todayISO } from '../lib/dates';
+import { addDaysISO, diffDays, gapsBetween, monthKey, monthLabel, resolveMonth, shiftMonthKey, shortDateLabel, todayISO } from '../lib/dates';
 import { computeAllEquityCounters, resolvePeriod } from '../lib/equity';
 import { TAG_EMOJI, TAG_LABEL } from '../lib/labels';
 import { winners } from '../lib/raffles';
+import { awayMonths } from '../lib/rotations';
 import type { EquityCounters, ResolvedDay } from '../types';
 
 const SNAPSHOT: { key: keyof EquityCounters; label: string; benefit?: boolean; hint: string }[] = [
@@ -43,7 +51,7 @@ function daysUntilLabel(n: number) {
 }
 
 export default function Inicio() {
-  const { resident: me } = useAuthContext();
+  const { resident: me, isAdmin } = useAuthContext();
   const { residents } = useResidents();
   const byId = useResidentsById(residents);
   const color = useColors(residents);
@@ -54,6 +62,10 @@ export default function Inicio() {
   const { tasks } = useTasks();
   const { links } = useLinks();
   const { raffles } = useRaffles();
+  const { rotations } = useRotations();
+  const { events } = useEvents();
+  const publications = usePublications();
+  const acks = useAcks(isAdmin ? undefined : me?.id);
   const today = todayISO();
 
   const active = useMemo(() => residents.filter((r) => r.active), [residents]);
@@ -71,8 +83,8 @@ export default function Inicio() {
     return m;
   }, [periodDays, today, storedDays, monthConfigs]);
   const counters = useMemo(
-    () => computeAllEquityCounters(active.map((r) => r.id), valid, periodDays),
-    [active, valid, periodDays],
+    () => computeAllEquityCounters(active.map((r) => r.id), valid, periodDays, awayMonths(rotations)),
+    [active, valid, periodDays, rotations],
   );
 
   const week = Array.from({ length: 7 }, (_, i) => addDaysISO(today, i));
@@ -86,6 +98,10 @@ export default function Inicio() {
   const pinned = links.filter((l) => l.pinned).slice(0, 8);
   const pendingRequests = requests.filter((r) => r.status === 'pendiente').slice(0, 4);
   const recentRaffles = raffles.slice(0, 3);
+  const nextMonth = shiftMonthKey(monthKey(today), 1);
+  const askPedidos =
+    Number(today.slice(8)) >= 8 && !requests.some((r) => r.residentId === me?.id && r.dates.some((d) => d.startsWith(nextMonth)));
+  const upcomingEvents = upcomingEventDates(events, today, 4);
 
   if (loading || !me) return <p className="text-sm text-text-dim">Cargando…</p>;
 
@@ -100,6 +116,23 @@ export default function Inicio() {
         </p>
         <h1 className="text-2xl font-semibold tracking-tight">Hola, {firstName} 👋</h1>
       </div>
+
+      {isAdmin && <AckAlerts acks={acks} byId={byId} meId={me.id} />}
+      {pendingAcks(publications, acks, me.id).map((p) => (
+        <MonthAckCard key={p.id} publication={p} me={me} shifts={shifts} />
+      ))}
+      {askPedidos && (
+        <Link
+          to="/pedidos"
+          className="rounded-2xl border border-accent/40 bg-accent-soft px-4 py-3 text-sm flex items-center justify-between gap-3 hover:brightness-95"
+        >
+          <span>
+            📝 Ya se pueden cargar los pedidos de <b>{monthLabel(nextMonth)}</b>: días que querés, que no podés o que
+            necesitás el posguardia.
+          </span>
+          <span className="text-accent font-medium whitespace-nowrap">Cargar →</span>
+        </Link>
+      )}
 
       <div className="grid gap-4 lg:grid-cols-3">
         <section className="lg:col-span-2 rounded-2xl p-5 text-white relative overflow-hidden" style={{ background: 'linear-gradient(135deg, var(--accent), #8f7ee6)' }}>
@@ -177,6 +210,45 @@ export default function Inicio() {
       )}
 
       <PushCard residentId={me.id} inicio />
+
+      <div className="grid gap-4 lg:grid-cols-3">
+        <Card
+          title="🗺️ Tu carril"
+          action={
+            <Link to="/camada?tab=carriles" className="text-xs text-accent underline">
+              Toda la camada
+            </Link>
+          }
+          className="lg:col-span-2"
+        >
+          <MyRotationStrip rotation={rotations.find((r) => r.id === me.id)} months={rotationMonths(rotations)} />
+        </Card>
+        <Card
+          title="📆 Próximos eventos"
+          action={
+            <Link to="/camada?tab=eventos" className="text-xs text-accent underline">
+              Ver todos
+            </Link>
+          }
+        >
+          {upcomingEvents.length === 0 ? (
+            <Empty>Nada agendado.</Empty>
+          ) : (
+            <ul className="flex flex-col gap-2">
+              {upcomingEvents.map(({ date, event }) => (
+                <li key={`${event.id}${date}`} className="flex items-center justify-between gap-2 text-sm">
+                  <span className="truncate">
+                    {eventEmoji(event)} {event.title}
+                  </span>
+                  <span className="text-text-dim whitespace-nowrap capitalize">
+                    {shortDateLabel(date)} · {daysUntilLabel(diffDays(today, date))}
+                  </span>
+                </li>
+              ))}
+            </ul>
+          )}
+        </Card>
+      </div>
 
       <Card title="Próximos 7 días">
         <div className="grid grid-cols-7 gap-1.5 text-center">
