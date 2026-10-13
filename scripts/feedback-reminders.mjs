@@ -1,12 +1,10 @@
 #!/usr/bin/env node
 // Corre todos los días a las 8 AM (GitHub Actions, ver
-// .github/workflows/feedback-reminder.yml). A quien hizo guardia ayer y todavía
-// no cargó feedback le manda un recordatorio:
-//   - notificación push a cada dispositivo donde la activó (pushTokens), y
-//   - un mail con botones "Dormí" / "No dormí", solo si están los secrets de Gmail.
-// Las dos cosas abren la app en el formulario de esa guardia. Además pasa a
-// "realizada" las guardias ya pasadas. Igual, al entrar a la app, el Inicio
-// muestra el feedback pendiente.
+// .github/workflows/feedback-reminder.yml). Pasa a "realizada" las guardias ya
+// pasadas (el Inicio muestra el feedback pendiente).
+// Recordatorio de feedback (APAGADO, ver RECORDATORIO_FEEDBACK): a quien hizo
+// guardia ayer y todavía no cargó feedback le manda un push y, si están los
+// secrets de Gmail, un mail con botones "Dormí" / "No dormí".
 // El día 8 de cada mes, además, avisa a todas que carguen los pedidos del mes
 // siguiente, y el 10 les avisa que toca generarlas a quienes tienen tildado
 // "Aviso del día 10" en Admin → Residentes.
@@ -17,8 +15,7 @@
 //   APP_URL                   (opcional) URL pública de la app
 //   DRY_RUN=true              muestra a quién avisaría, sin mandar ni escribir
 //   TEST_TO=mail@…            (solo corriéndolo a mano en una compu) aviso de prueba a esa residente
-//   TEST_AVISADAS=true        manda SOLO un aviso de prueba a quienes tienen el aviso del día 10
-//                             (push a sus dispositivos + mail si hay Gmail)
+//   TEST_AVISADAS=true        manda SOLO un push de prueba a quienes tienen el aviso del día 10
 //
 // El repo es público y los logs de Actions también: acá no se imprimen nombres
 // ni mails, solo cantidades.
@@ -33,6 +30,9 @@ const { FIREBASE_SERVICE_ACCOUNT, SMTP_USER, SMTP_PASS } = process.env;
 const TEST_TO = (process.env.TEST_TO || '').trim().toLowerCase();
 const DRY_RUN = process.env.DRY_RUN === 'true';
 const MAIL = Boolean(SMTP_USER && SMTP_PASS);
+// Recordatorio de feedback a la mañana siguiente de cada guardia: apagado a pedido
+// de las admins (el feedback se sigue cargando desde la app). true = prenderlo.
+const RECORDATORIO_FEEDBACK = false;
 
 const todayAR = new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Argentina/Buenos_Aires' }).format(new Date());
 const yesterday = (() => {
@@ -109,9 +109,14 @@ if (TEST_TO || process.env.TEST_AVISADAS === 'true') {
     process.exit(TEST_TO ? 1 : 0);
   }
   for (const d of snap.docs) {
-    const resident = { id: d.id, ...d.data() };
-    const { pushed, mailed } = await remind(resident, 'prueba', yesterday, { test: true });
-    if (pushed === 0 && !mailed) {
+    const pushed = await push(d.id, {
+      title: '[Prueba] Notificaciones de Guardias R1',
+      body: 'Si ves esto, las notificaciones te llegan bien.',
+      url: `${APP_URL}#/`,
+      tag: 'prueba',
+    });
+    console.log(`Prueba: ${pushed} push.`);
+    if (pushed === 0) {
       console.log('::warning::Una de las avisadas todavía no activó las notificaciones en ningún dispositivo.');
     }
   }
@@ -128,7 +133,7 @@ for (const docSnap of shiftsSnap.docs) {
     if (!DRY_RUN) await docSnap.ref.update({ status: 'realizada', updatedAt: new Date().toISOString() });
     marked++;
   }
-  if (shift.date !== yesterday || shift.status === 'cancelada') continue;
+  if (!RECORDATORIO_FEEDBACK || shift.date !== yesterday || shift.status === 'cancelada') continue;
 
   const fb = await db.collection('feedback').doc(docSnap.id).get();
   if (fb.exists) continue;
@@ -173,5 +178,7 @@ if (todayAR.slice(8) === '10') {
   }
 }
 
-console.log(`Listo: ${reminded} recordatorio(s) ${DRY_RUN ? 'a mandar' : 'enviados'}, ${marked} guardia(s) pasadas a "realizada".`);
+console.log(
+  `Listo: ${RECORDATORIO_FEEDBACK ? `${reminded} recordatorio(s) de feedback ${DRY_RUN ? 'a mandar' : 'enviados'}, ` : ''}${marked} guardia(s) pasadas a "realizada".`,
+);
 process.exit(0);

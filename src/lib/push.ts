@@ -3,7 +3,7 @@ import { getMessaging, getToken, isSupported } from 'firebase/messaging';
 import { app, db } from '../firebase';
 
 /**
- * Notificaciones push (recordatorio de feedback a las 8 AM). El token FCM de
+ * Notificaciones push (publicaciones, pedidos, guardias ofrecidas). El token FCM de
  * cada dispositivo se guarda en pushTokens/{token} con el residentId; el
  * script de GitHub Actions los lee y manda el push. En iPhone solo funciona
  * con la app agregada a la pantalla de inicio (iOS 16.4+).

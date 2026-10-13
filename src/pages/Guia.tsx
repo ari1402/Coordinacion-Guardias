@@ -53,7 +53,7 @@ function GuiaTodas() {
           </li>
           <li>
             <b>Activá las notificaciones</b> desde el Inicio o Mi cuenta. Te avisan cuando se publican las guardias, el 8 de cada
-            mes para cargar pedidos y a la mañana después de cada guardia para el feedback.
+            mes para cargar pedidos y cuando alguien ofrece una guardia.
           </li>
           <li>¿Olvidaste la contraseña? En la pantalla de entrada escribí tu mail y tocá “Olvidé mi contraseña”.</li>
         </ol>
@@ -73,7 +73,7 @@ function GuiaTodas() {
             con las que te tocaron. Si ponés que no, escribí qué necesitás: les llega a {admins} para corregirlo.
           </li>
           <li>
-            <b>Después de cada guardia:</b> a las 8 AM te llega el recordatorio para el feedback.
+            <b>Después de cada guardia:</b> cargá el feedback desde el Inicio (aparece ahí mientras esté pendiente).
           </li>
         </ol>
       </Section>

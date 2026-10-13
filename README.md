@@ -52,12 +52,14 @@ Con ella GitHub publica las reglas de seguridad y la app en cada cambio.
 Mientras no esté el secret, la publicación falla a propósito y queda online la
 versión anterior.
 
-### 2. Recordatorio de feedback a las 8 AM
+### 2. Avisos diarios a las 8 AM
 
 `.github/workflows/feedback-reminder.yml` corre todos los días a las 8:00 (hora
-Argentina): a quien hizo guardia ayer y no cargó feedback le manda una
-**notificación push** que abre la app en el formulario de esa guardia. Además,
-el Inicio muestra siempre el feedback pendiente.
+Argentina): pasa a "realizada" las guardias ya pasadas, el día 8 avisa que hay
+que cargar pedidos y el 10 avisa a quienes tienen "Aviso del día 10". El
+recordatorio de feedback de la mañana siguiente está **apagado**
+(`RECORDATORIO_FEEDBACK` en `scripts/feedback-reminders.mjs`); el Inicio muestra
+siempre el feedback pendiente.
 
 - Cada una activa las notificaciones desde **Inicio** o **Mi cuenta → Activar
   notificaciones**, en cada dispositivo. En iPhone primero hay que agregar la
@@ -65,7 +67,7 @@ el Inicio muestra siempre el feedback pendiente.
   inicio*) y abrirla desde ese ícono.
 - En Admin → Feedback, la columna 🔔 muestra quién las tiene activadas.
 - Prueba: cualquier push que cambie `feedback-reminder.yml` (por ejemplo el
-  número de `# prueba:`) manda un aviso de prueba solo a `TEST_PUSH_DEFAULT`.
+  número de `# prueba:`) manda un push de prueba a quienes tienen "Aviso del día 10".
 
 **Mail (opcional):** si además se cargan los secrets `SMTP_USER` (un Gmail) y
 `SMTP_PASS` (una [contraseña de aplicación](https://myaccount.google.com/apppasswords)

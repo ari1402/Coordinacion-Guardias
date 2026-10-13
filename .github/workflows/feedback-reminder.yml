@@ -1,4 +1,4 @@
-name: Recordatorio de feedback post-guardia
+name: Avisos diarios (pedidos y día 10)
 
 on:
   schedule:
