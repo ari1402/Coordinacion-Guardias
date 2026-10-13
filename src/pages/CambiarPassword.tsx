@@ -53,6 +53,9 @@ function PasswordForm({ forced = false, onDone }: { forced?: boolean; onDone: ()
 
   return (
     <form onSubmit={handleSubmit} className="flex flex-col gap-3">
+      <p className="rounded-lg border-2 border-danger bg-danger-soft px-3 py-2 text-sm font-bold uppercase text-danger">
+        ⚠️ No uses la misma contraseña que la del hospital
+      </p>
       <label className="flex flex-col gap-1 text-sm text-text-dim">
         {forced ? 'Contraseña actual (la temporal que te pasaron)' : 'Contraseña actual'}
         <input type="password" required autoComplete="current-password" value={current} onChange={(e) => setCurrent(e.target.value)} className={inputCls} />
