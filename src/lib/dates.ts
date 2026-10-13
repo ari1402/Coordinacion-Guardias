@@ -150,8 +150,12 @@ function resolveDay(
   // bloque de feriados (el día siguiente es feriado y hoy no).
   if (!isHoliday && holidayAt(addDaysISO(dateISO, 1))) tags.push('preferiado');
 
-  // Jueves: "finde XL" si el lunes siguiente es feriado; si no, "jueves feliz".
-  if (weekday === 3) tags.push(holidayAt(addDaysISO(dateISO, 4)) ? 'finde_xl' : 'jueves_feliz');
+  // Jueves: "finde XL" si el lunes siguiente es feriado; si no, "jueves feliz"
+  // (salvo que el jueves mismo sea feriado, como el 24/12 o el 31/12).
+  if (weekday === 3) {
+    if (holidayAt(addDaysISO(dateISO, 4))) tags.push('finde_xl');
+    else if (!isHoliday) tags.push('jueves_feliz');
+  }
 
   // Día de finde largo (3+ días no hábiles seguidos, con la noche anterior).
   if (isLongWeekendDay(dateISO, holidayAt)) tags.push('finde_largo');

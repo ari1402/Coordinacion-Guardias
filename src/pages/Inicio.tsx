@@ -39,7 +39,7 @@ import type { EquityCounters, ResolvedDay } from '../types';
 import { requesterName } from '../types';
 
 const SNAPSHOT: { key: keyof EquityCounters; label: string; benefit?: boolean; hint: string }[] = [
-  { key: 'totalGuardias', label: 'Guardias totales', hint: 'todas las guardias hechas o publicadas' },
+  { key: 'totalGuardias', label: 'Guardias totales', hint: 'hechas hasta ahora y las de este mes' },
   { key: 'sabadosYPreferiados', label: 'Sábados + preferiados', hint: 'las que cortan el finde' },
   { key: 'sabadosSinCompensar', label: 'Sábados sin jueves', hint: 'sin jueves feliz o XL ese mes' },
   { key: 'findeTotal', label: 'Vie + sáb + dom', hint: 'guardias de fin de semana' },
@@ -90,13 +90,17 @@ export default function Inicio() {
     for (const d of resolveMonth(monthKey(addDaysISO(today, 7)), storedDays, monthConfigs)) m.set(d.id, d);
     return m;
   }, [periodDays, today, storedDays, monthConfigs]);
+  // "Tu reparto": solo lo hecho hasta ahora y lo programado de este mes (no los meses siguientes).
+  const nextMonthStart = `${shiftMonthKey(monthKey(today), 1)}-01`;
+  const counted = useMemo(() => valid.filter((s) => s.date < nextMonthStart), [valid, nextMonthStart]);
+  const countedDays = useMemo(() => resolvePeriod(counted, storedDays, monthConfigs), [counted, storedDays, monthConfigs]);
   const counters = useMemo(
     () =>
-      computeAllEquityCounters(active.map((r) => r.id), valid, periodDays, {
+      computeAllEquityCounters(active.map((r) => r.id), counted, countedDays, {
         away: awayMonths(rotations),
         holidays: new Set(storedDays.filter((d) => d.isHoliday).map((d) => d.date)),
       }),
-    [active, valid, periodDays, rotations, storedDays],
+    [active, counted, countedDays, rotations, storedDays],
   );
 
   const week = Array.from({ length: 7 }, (_, i) => addDaysISO(today, i));
@@ -321,7 +325,7 @@ export default function Inicio() {
       <div className="grid gap-4 lg:grid-cols-3">
         <Card
           title="Tu reparto vs. el grupo"
-          subtitle="Acumulado. La línea va del que menos al que más tiene; la marca gris es el promedio y el punto sos vos."
+          subtitle={`Acumulado hasta fin de ${monthLabel(monthKey(today))} (no cuenta los meses siguientes). La línea va del que menos al que más tiene; la marca gris es el promedio y el punto sos vos.`}
           action={
             <Link to="/metricas" className="text-xs text-accent underline">
               Ver todo

@@ -171,7 +171,8 @@ function GuiaTodas() {
             <b>Finde XL</b> (jueves antes de un finde largo): va por turnos, al azar entre quienes todavía no tuvieron.
           </li>
           <li>
-            <b>Sábado → jueves feliz:</b> quien tiene un sábado en el mes, tiene un jueves feliz para compensar.
+            <b>Sábado → jueves feliz:</b> quien tiene un sábado en el mes, tiene un jueves feliz para compensar. Un jueves
+            que es feriado (como el 24/12 o el 31/12) no cuenta como jueves feliz.
           </li>
           <li>Los findes largos libres (vie a la noche a lunes feriado) también rotan.</li>
           <li>Siempre manda lo que pidieron, salvo que sea imposible.</li>

@@ -65,6 +65,13 @@ describe('calendario', () => {
     expect(hasTag(oct.find((d) => d.date === '2026-10-15')!, 'jueves_feliz')).toBe(true);
   });
 
+  it('un jueves feriado (24/12, 31/12) no es jueves feliz', () => {
+    const fer = (date: string) => ({ id: date, date, isHoliday: true });
+    const dic = resolveMonth('2026-12', [...holidays, fer('2026-12-24'), fer('2026-12-31')], configs);
+    for (const date of ['2026-12-24', '2026-12-31']) expect(hasTag(dic.find((d) => d.date === date)!, 'jueves_feliz')).toBe(false);
+    expect(hasTag(dic.find((d) => d.date === '2026-12-17')!, 'jueves_feliz')).toBe(true);
+  });
+
   it('el preferiado de un bloque es el día anterior al inicio (8/11, no el 9)', () => {
     const nov = resolveMonth('2026-11', holidays, configs);
     expect(hasTag(nov.find((d) => d.date === '2026-11-08')!, 'preferiado')).toBe(true);
