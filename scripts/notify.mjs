@@ -4,7 +4,9 @@
 //   - Se publicó (o republicó) un mes → a quienes les cambió alguna guardia:
 //     que las pidan en HIBA 2 y confirmen en la app si están OK.
 //   - Alguien dijo que NO está OK con sus guardias → a las admins.
-//   - "Ofrezco mi guardia": oferta nueva → a todas; la tomaron → a quien la ofreció.
+//   - "Ofrezco mi guardia" / "Busco cambio": nueva → a todas; la tomaron → a quien la publicó.
+//   - Intercambio propuesto → a quien lo recibe; aceptado o rechazado → a quien lo propuso.
+//   - Pedido de cargar un mes en HIBA 2 → a quienes tienen guardias ese mes y no confirmaron.
 // Cada aviso se manda una sola vez (queda marcado notified = true).
 // Los logs de Actions son públicos: no se imprimen nombres, solo cantidades.
 
@@ -70,11 +72,14 @@ for (const off of (await db.collection('offers').where('notifiedOpen', '==', fal
   const o = off.data();
   if (o.status === 'abierta') {
     const who = residents.get(o.fromResidentId)?.shortName ?? 'Alguien';
+    const busco = o.kind === 'busco';
     for (const [id, r] of residents) {
       if (id === o.fromResidentId || r.active === false) continue;
       sent += await pushTo(db, id, {
-        title: `🤝 ${who} ofrece su guardia del ${dayLabel(o.date)}`,
-        body: o.note ? `“${o.note}”. Si la querés, tomala en Cambios.` : 'Si la querés, tomala en Cambios.',
+        title: busco ? `🔄 ${who} busca cambio para su guardia del ${dayLabel(o.date)}` : `🤝 ${who} ofrece su guardia del ${dayLabel(o.date)}`,
+        body: busco
+          ? `${o.note ? `“${o.note}”. ` : ''}Si te sirve, proponele una tuya a cambio en Cambios.`
+          : o.note ? `“${o.note}”. Si la querés, tomala en Cambios.` : 'Si la querés, tomala en Cambios.',
         url: `${APP_URL}#/cambios`,
         tag: `oferta-${off.id}`,
       });
@@ -94,6 +99,66 @@ for (const off of (await db.collection('offers').where('notifiedTaken', '==', fa
   });
   console.log(`Oferta ${o.date} tomada: avisado`);
   await off.ref.update({ notifiedTaken: true });
+}
+
+// 4. Intercambios
+for (const tr of (await db.collection('trades').where('notifiedNew', '==', false).get()).docs) {
+  const t = tr.data();
+  if (t.status === 'propuesto') {
+    const who = residents.get(t.fromResidentId)?.shortName ?? 'Alguien';
+    sent += await pushTo(db, t.toResidentId, {
+      title: `🔁 ${who} te propone un intercambio`,
+      body: `Te da su guardia del ${dayLabel(t.fromDate)} y se queda con tu ${dayLabel(t.toDate)}. Respondé en Cambios.`,
+      url: `${APP_URL}#/cambios`,
+      tag: `intercambio-${tr.id}`,
+    });
+    console.log(`Intercambio propuesto (${t.fromDate} ⇄ ${t.toDate}): avisado`);
+  }
+  await tr.ref.update({ notifiedNew: true });
+}
+for (const tr of (await db.collection('trades').where('notifiedResolved', '==', false).where('status', 'in', ['aceptado', 'rechazado', 'cancelado']).get()).docs) {
+  const t = tr.data();
+  if (t.status !== 'cancelado') {
+    const who = residents.get(t.toResidentId)?.shortName ?? 'Alguien';
+    const ok = t.status === 'aceptado';
+    sent += await pushTo(db, t.fromResidentId, {
+      title: ok ? `✅ ${who} aceptó el intercambio` : `${who} no aceptó el intercambio`,
+      body: ok
+        ? `Ahora hacés la del ${dayLabel(t.toDate)} y ${who} la del ${dayLabel(t.fromDate)}. Acordate de actualizarlo en HIBA 2.`
+        : `Tu guardia del ${dayLabel(t.fromDate)} sigue siendo tuya.`,
+      url: `${APP_URL}#/cambios`,
+      tag: `intercambio-${tr.id}`,
+    });
+    console.log(`Intercambio ${t.status}: avisado`);
+  }
+  await tr.ref.update({ notifiedResolved: true });
+}
+
+// 5. Cargar las guardias en HIBA 2 → a quienes tienen guardias ese mes y no confirmaron
+for (const req of (await db.collection('hibaRequests').where('notified', '==', false).get()).docs) {
+  const month = req.id;
+  const owners = new Set(
+    (await db.collection('shifts').where('date', '>=', `${month}-01`).where('date', '<=', `${month}-31`).get()).docs
+      .map((d) => d.data())
+      .filter((s) => s.status !== 'cancelada')
+      .map((s) => s.actualResidentId),
+  );
+  const done = new Set(
+    (await db.collection('hibaAcks').where('month', '==', month).get()).docs.map((d) => d.data().residentId),
+  );
+  let n = 0;
+  for (const id of owners) {
+    if (done.has(id) || residents.get(id)?.active === false) continue;
+    n += await pushTo(db, id, {
+      title: `📋 Pedí tus guardias de ${monthLabel(month)} en HIBA 2`,
+      body: 'Cuando las tengas pedidas, marcalo en el Inicio de la app (“Ya las pedí”).',
+      url: `${APP_URL}#/`,
+      tag: `hiba-${month}`,
+    });
+  }
+  console.log(`HIBA 2 ${month}: ${n} push`);
+  sent += n;
+  await req.ref.update({ notified: true });
 }
 
 console.log(`Listo: ${sent} push enviados.`);

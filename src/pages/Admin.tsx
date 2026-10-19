@@ -9,6 +9,7 @@ import { openBackup, type OpenedBackup } from '../lib/backupOpen';
 import { db } from '../firebase';
 import { useAcks, useActivity, useAdminNames, useCalendarData, useFeedback, usePublications, usePushTokens, useResidents, useResidentsById } from '../hooks/data';
 import { AckAlerts } from '../components/Conformidad';
+import { HibaAdmin } from '../components/Hiba';
 import { PrivateNotesEditor } from '../components/PrivateNotes';
 import { useAuthContext } from '../context/AuthContext';
 import { useColors } from '../hooks/useColors';
@@ -713,6 +714,7 @@ function Conformidad() {
   return (
     <div className="flex flex-col gap-4">
       {me && <AckAlerts acks={acks} byId={byId} meId={me.id} />}
+      <HibaAdmin />
       <Card
         title="¿Están OK con sus guardias?"
         subtitle="Al publicar (o republicar) un mes, a quienes les cambió algo les llega un push y en el Inicio les aparece la pregunta. Si alguien dice que no, les llega un push a las admins."

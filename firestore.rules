@@ -129,6 +129,54 @@ service cloud.firestore {
         && get(shiftPath(o.shiftId)).data.actualResidentId == o.fromResidentId;
     }
 
+    // Una de las dos patas de un intercambio aceptado (la crea quien acepta, en el
+    // mismo batch): sin deuda y con las guardias todavía en manos de cada una.
+    function swapFromTrade() {
+      let t = getAfter(/databases/$(database)/documents/trades/$(request.resource.data.tradeId)).data;
+      let s = request.resource.data;
+      return t.status == 'aceptado'
+        && t.toResidentId == request.auth.uid
+        && s.generatesDebt == false
+        && ((s.shiftId == t.fromShiftId && s.fromResidentId == t.fromResidentId && s.toResidentId == t.toResidentId
+              && get(shiftPath(t.fromShiftId)).data.actualResidentId == t.fromResidentId)
+          || (s.shiftId == t.toShiftId && s.fromResidentId == t.toResidentId && s.toResidentId == t.fromResidentId
+              && get(shiftPath(t.toShiftId)).data.actualResidentId == t.toResidentId));
+    }
+
+    // Intercambio directo: una propone "te doy mi guardia por la tuya"; la otra
+    // acepta (y en el mismo batch se mueven las dos guardias) o rechaza. Hasta
+    // el día 20 del mes anterior a cada guardia, como las ofertas.
+    match /trades/{id} {
+      allow read: if isResident();
+      allow create: if isResident()
+        && request.resource.data.fromResidentId == request.auth.uid
+        && request.resource.data.toResidentId != request.auth.uid
+        && request.resource.data.status == 'propuesto'
+        && request.resource.data.notifiedNew == false
+        && request.resource.data.notifiedResolved == false
+        && get(shiftPath(request.resource.data.fromShiftId)).data.actualResidentId == request.auth.uid
+        && get(shiftPath(request.resource.data.fromShiftId)).data.date == request.resource.data.fromDate
+        && get(shiftPath(request.resource.data.toShiftId)).data.actualResidentId == request.resource.data.toResidentId
+        && get(shiftPath(request.resource.data.toShiftId)).data.date == request.resource.data.toDate
+        && request.time < offerDeadline(request.resource.data.fromDate)
+        && request.time < offerDeadline(request.resource.data.toDate)
+        && request.resource.data.keys().hasOnly(['id', 'fromResidentId', 'fromShiftId', 'fromDate', 'toResidentId', 'toShiftId', 'toDate', 'note', 'offerId', 'status', 'createdAt', 'notifiedNew', 'notifiedResolved']);
+      allow update: if isResident() && resource.data.status == 'propuesto' && onlyChanged(['status', 'respondedAt']) && (
+        // aceptar: quien la recibe, con las dos guardias cambiando de dueña en el mismo batch
+        (request.resource.data.status == 'aceptado'
+          && isSelf(resource.data.toResidentId)
+          && request.time < offerDeadline(resource.data.fromDate)
+          && request.time < offerDeadline(resource.data.toDate)
+          && getAfter(shiftPath(resource.data.fromShiftId)).data.actualResidentId == resource.data.toResidentId
+          && getAfter(shiftPath(resource.data.toShiftId)).data.actualResidentId == resource.data.fromResidentId)
+        // rechazar: quien la recibe
+        || (request.resource.data.status == 'rechazado' && isSelf(resource.data.toResidentId))
+        // retirarla: quien la propuso
+        || (request.resource.data.status == 'cancelado' && isSelf(resource.data.fromResidentId))
+      );
+      allow delete: if isAdmin();
+    }
+
     // "Ofrezco mi guardia": cualquiera ofrece una guardia suya; otra la toma
     // (en el mismo batch que crea el cambio y pasa la guardia). Hasta el día 20.
     match /offers/{id} {
@@ -141,7 +189,8 @@ service cloud.firestore {
         && request.time < offerDeadline(request.resource.data.date)
         && get(shiftPath(request.resource.data.shiftId)).data.actualResidentId == request.auth.uid
         && get(shiftPath(request.resource.data.shiftId)).data.date == request.resource.data.date
-        && request.resource.data.keys().hasOnly(['id', 'shiftId', 'date', 'fromResidentId', 'note', 'generatesDebt', 'status', 'createdAt', 'notifiedOpen', 'notifiedTaken']);
+        && (!('kind' in request.resource.data) || request.resource.data.kind in ['ofrezco', 'busco'])
+        && request.resource.data.keys().hasOnly(['id', 'shiftId', 'date', 'fromResidentId', 'kind', 'note', 'generatesDebt', 'status', 'createdAt', 'notifiedOpen', 'notifiedTaken']);
       allow update: if isResident() && resource.data.status == 'abierta' && (
         // tomarla
         (request.resource.data.status == 'tomada'
@@ -154,6 +203,11 @@ service cloud.firestore {
         || (request.resource.data.status == 'cancelada'
           && (isSelf(resource.data.fromResidentId) || isAdmin())
           && onlyChanged(['status', 'cancelledAt', 'cancelledBy']))
+        // "Busco cambio" resuelto: quien la publicó aceptó un intercambio
+        || (request.resource.data.status == 'resuelta'
+          && isSelf(resource.data.fromResidentId)
+          && onlyChanged(['status', 'resolvedAt', 'tradeId'])
+          && getAfter(/databases/$(database)/documents/trades/$(request.resource.data.tradeId)).data.status == 'aceptado')
       );
       allow delete: if isAdmin();
     }
@@ -165,7 +219,8 @@ service cloud.firestore {
       allow create: if isResident() && createdByMe()
         && ((request.resource.data.status == 'solicitado'
             && (request.resource.data.fromResidentId == request.auth.uid || isAdmin()))
-          || (request.resource.data.status == 'confirmado' && 'offerId' in request.resource.data && swapFromOffer()));
+          || (request.resource.data.status == 'confirmado' && 'offerId' in request.resource.data && swapFromOffer())
+          || (request.resource.data.status == 'confirmado' && 'tradeId' in request.resource.data && swapFromTrade()));
       allow update: if isAdmin() || (
         (isSelf(resource.data.toResidentId) || isSelf(resource.data.fromResidentId))
         && onlyChanged(['status', 'debtSettled'])
@@ -246,6 +301,23 @@ service cloud.firestore {
         && request.resource.data.keys().hasOnly(['id', 'month', 'residentId', 'ok', 'comment', 'at', 'notified']);
       allow update: if isAdmin() && onlyChanged(['resolvedAt', 'resolvedBy']);
       allow delete: if isAdmin();
+    }
+
+    // Pedido de cargar las guardias de un mes en HIBA 2 (lo hacen las admins;
+    // el script de notificaciones avisa a las que todavía no confirmaron).
+    match /hibaRequests/{month} {
+      allow read: if isResident();
+      allow write: if isAdmin();
+    }
+
+    // "Ya pedí mis guardias en HIBA 2" (id = mes_uid): cada una la suya.
+    match /hibaAcks/{id} {
+      allow read: if isAdmin() || (isSignedIn() && resource.data.residentId == request.auth.uid);
+      allow create, update: if isResident()
+        && id == request.resource.data.month + '_' + request.auth.uid
+        && request.resource.data.residentId == request.auth.uid
+        && request.resource.data.keys().hasOnly(['id', 'month', 'residentId', 'at']);
+      allow delete: if isAdmin() || (isSignedIn() && resource.data.residentId == request.auth.uid);
     }
 
     // Notas del mes privadas: solo las lee y escribe quien las crea (ni las otras admins).

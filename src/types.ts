@@ -260,11 +260,16 @@ export interface Swap {
   debtSettled?: boolean;
   /** Si salió de una guardia ofrecida ("Ofrezco mi guardia"). */
   offerId?: string;
+  /** Si es una de las dos patas de un intercambio directo. */
+  tradeId?: string;
   createdBy: string;
   createdAt: string;
 }
 
-export type OfferStatus = 'abierta' | 'tomada' | 'cancelada';
+export type OfferStatus = 'abierta' | 'tomada' | 'cancelada' | 'resuelta';
+
+/** "ofrezco": la cede (alguien la toma). "busco": busca cambio (le proponen otra a cambio, o la toman). */
+export type OfferKind = 'ofrezco' | 'busco';
 
 /**
  * "Ofrezco mi guardia": alguien publica una guardia que quiere ceder y otra la
@@ -276,6 +281,11 @@ export interface GuardiaOffer {
   shiftId: string;
   date: string;
   fromResidentId: string;
+  /** Sin dato = "ofrezco" (las ofertas anteriores a "Busco cambio"). */
+  kind?: OfferKind;
+  /** "Busco cambio" resuelto con un intercambio. */
+  resolvedAt?: string;
+  tradeId?: string;
   note?: string;
   /** Si quien la cede quiere que se la devuelvan (queda como deuda). */
   generatesDebt: boolean;
@@ -371,6 +381,49 @@ export interface Publication {
   pending: Record<string, string>;
   lastAffected: string[];
   notified: boolean;
+}
+
+export type TradeStatus = 'propuesto' | 'aceptado' | 'rechazado' | 'cancelado';
+
+/**
+ * Intercambio directo: quien propone da su guardia (from) y se queda con la de
+ * la otra (to). Si la otra acepta, las dos guardias cambian de dueña a la vez,
+ * sin deuda. Mismo plazo que "Ofrezco mi guardia" (hasta el 20 del mes anterior).
+ */
+export interface Trade {
+  id: string;
+  fromResidentId: string;
+  fromShiftId: string;
+  fromDate: string;
+  toResidentId: string;
+  toShiftId: string;
+  toDate: string;
+  note?: string;
+  /** Si es la respuesta a un "Busco cambio". */
+  offerId?: string;
+  status: TradeStatus;
+  createdAt: string;
+  respondedAt?: string;
+  /** El script ya avisó a quien recibe la propuesta / a quien la hizo. */
+  notifiedNew: boolean;
+  notifiedResolved: boolean;
+}
+
+/** Las admins piden que carguen las guardias de un mes en HIBA 2 (doc id = "YYYY-MM"). */
+export interface HibaRequest {
+  id: string;
+  requestedAt: string;
+  requestedBy: string;
+  /** false = el script tiene que mandar el push a las que faltan. */
+  notified: boolean;
+}
+
+/** "Ya pedí mis guardias en HIBA 2". Doc id = "YYYY-MM_residentId". */
+export interface HibaAck {
+  id: string;
+  month: string;
+  residentId: string;
+  at: string;
 }
 
 /** "¿Estás OK con tus guardias del mes?" Doc id = "YYYY-MM_residentId". */

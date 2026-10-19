@@ -6,6 +6,7 @@ import { MyRotationStrip, rotationMonths } from '../components/Carriles';
 import { AckAlerts, MonthAckCard, pendingAcks } from '../components/Conformidad';
 import { eventEmoji, upcomingEventDates } from '../components/Eventos';
 import FeedbackForm from '../components/FeedbackForm';
+import { HibaCard, pendingHiba } from '../components/Hiba';
 import { PushBanner } from '../components/PushCard';
 import RangeBar from '../components/RangeBar';
 import { Card, Dot, Empty, ResidentChip } from '../components/ui';
@@ -17,7 +18,10 @@ import {
   useCalendarData,
   useEvents,
   useFeedback,
+  useHibaAcks,
+  useHibaRequests,
   useOffers,
+  useTrades,
   useLinks,
   useRaffles,
   useRequests,
@@ -74,6 +78,9 @@ export default function Inicio() {
   const publications = usePublications();
   const offers = useOffers();
   const acks = useAcks(isAdmin ? undefined : me?.id);
+  const trades = useTrades();
+  const hibaRequests = useHibaRequests();
+  const hibaAcks = useHibaAcks(me?.id);
   const today = todayISO();
 
   const active = useMemo(() => residents.filter((r) => r.active), [residents]);
@@ -123,6 +130,7 @@ export default function Inicio() {
   const toGenerate = isAdmin && dayOfMonth >= 10 && !shifts.some((s) => s.date.startsWith(nextMonth));
   const upcomingEvents = upcomingEventDates(events, today, 4);
   const openOffers = offers.filter((o) => o.status === 'abierta' && o.fromResidentId !== me?.id && offerOpen(o.date, today));
+  const tradesForMe = trades.filter((t) => t.status === 'propuesto' && t.toResidentId === me?.id);
 
   if (loading || !me) return <p className="text-sm text-text-dim">Cargando…</p>;
 
@@ -139,6 +147,27 @@ export default function Inicio() {
       </div>
 
       {isAdmin && <AckAlerts acks={acks} byId={byId} meId={me.id} />}
+      {pendingHiba(hibaRequests, hibaAcks, shifts, me.id).map((m) => (
+        <HibaCard key={m} month={m} me={me} shifts={shifts} />
+      ))}
+      {tradesForMe.length > 0 && (
+        <Link
+          to="/cambios"
+          className="rounded-2xl border border-accent/40 bg-accent-soft px-4 py-3 text-sm flex items-center justify-between gap-3 hover:brightness-95"
+        >
+          <span>
+            🔁 {tradesForMe.length === 1 ? (
+              <>
+                <b>{byId.get(tradesForMe[0].fromResidentId)?.shortName}</b> te propone un intercambio: su{' '}
+                {shortDateLabel(tradesForMe[0].fromDate)} por tu {shortDateLabel(tradesForMe[0].toDate)}.
+              </>
+            ) : (
+              <>Tenés {tradesForMe.length} propuestas de intercambio.</>
+            )}
+          </span>
+          <span className="text-accent font-medium whitespace-nowrap">Responder →</span>
+        </Link>
+      )}
       {pendingAcks(publications, acks, me.id).map((p) => (
         <MonthAckCard key={p.id} publication={p} me={me} shifts={shifts} />
       ))}
@@ -161,10 +190,10 @@ export default function Inicio() {
           className="rounded-2xl border border-accent/40 bg-accent-soft px-4 py-3 text-sm flex items-center justify-between gap-3 hover:brightness-95"
         >
           <span>
-            🤝 Ofrecen {openOffers.length === 1 ? 'una guardia' : `${openOffers.length} guardias`}:{' '}
+            🤝 {openOffers.length === 1 ? (openOffers[0].kind === 'busco' ? 'Buscan cambio para una guardia' : 'Ofrecen una guardia') : `${openOffers.length} guardias ofrecidas o buscando cambio`}:{' '}
             {openOffers
               .slice(0, 3)
-              .map((o) => `${shortDateLabel(o.date)} (${byId.get(o.fromResidentId)?.shortName})`)
+              .map((o) => `${shortDateLabel(o.date)} (${byId.get(o.fromResidentId)?.shortName}${o.kind === 'busco' ? ', busca cambio' : ''})`)
               .join(' · ')}
             {openOffers.length > 3 ? '…' : ''}
           </span>

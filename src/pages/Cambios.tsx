@@ -13,6 +13,7 @@ import { isoWeekday, shortDateLabel } from '../lib/dates';
 import { logActivity } from '../lib/activity';
 import Badge from '../components/Badge';
 import OffersPanel from '../components/Offers';
+import TradesPanel from '../components/Trades';
 import { PageHeader } from '../components/ui';
 
 function pesoDia(weekday: number): { label: string; tone: 'good' | 'neutral' | 'warning' } {
@@ -113,6 +114,7 @@ export default function Cambios() {
       />
 
       <OffersPanel />
+      <TradesPanel />
 
       {resident && (
         <form onSubmit={handleSubmit} className="bg-surface border border-border rounded-xl p-4 flex flex-col gap-3">

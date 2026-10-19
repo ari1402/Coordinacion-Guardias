@@ -1,6 +1,6 @@
 import { collection, doc, setDoc, updateDoc, writeBatch } from 'firebase/firestore';
 import { db } from '../firebase';
-import type { GuardiaOffer, Resident, Shift } from '../types';
+import type { GuardiaOffer, OfferKind, Resident, Shift } from '../types';
 import { logActivity } from './activity';
 import { diffDays, shortDateLabel, shiftMonthKey, todayISO } from './dates';
 import { isBirthdayBlocked } from './birthdays';
@@ -14,13 +14,14 @@ export function offerOpen(date: string, today = todayISO()): boolean {
   return today <= offerDeadline(date);
 }
 
-export async function createOffer(shift: Shift, me: Resident, note: string, generatesDebt: boolean) {
+export async function createOffer(shift: Shift, me: Resident, note: string, generatesDebt: boolean, kind: OfferKind = 'ofrezco') {
   const ref = doc(collection(db, 'offers'));
   const offer: Omit<GuardiaOffer, 'id'> & { id: string } = {
     id: ref.id,
     shiftId: shift.id,
     date: shift.date,
     fromResidentId: me.id,
+    kind,
     ...(note.trim() ? { note: note.trim() } : {}),
     generatesDebt,
     status: 'abierta',
@@ -29,7 +30,11 @@ export async function createOffer(shift: Shift, me: Resident, note: string, gene
     notifiedTaken: false,
   };
   await setDoc(ref, offer);
-  await logActivity({ entity: 'cambio', summary: `Ofreció su guardia del ${shortDateLabel(shift.date)}`, changes: note.trim() ? [note.trim()] : [] });
+  await logActivity({
+    entity: 'cambio',
+    summary: kind === 'busco' ? `Busca cambio para su guardia del ${shortDateLabel(shift.date)}` : `Ofreció su guardia del ${shortDateLabel(shift.date)}`,
+    changes: note.trim() ? [note.trim()] : [],
+  });
 }
 
 /** Tomar una guardia ofrecida: queda como cambio confirmado y la guardia pasa a quien la toma. */

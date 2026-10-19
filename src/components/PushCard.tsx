@@ -3,7 +3,7 @@ import { disablePush, enablePush, isIOS, pushState, pushSupport, type PushState,
 import { btnPrimary, btnSecondary, Card } from './ui';
 
 const QUE_AVISA =
-  'Te avisa cuando se publican las guardias, el 8 de cada mes para cargar pedidos y cuando alguien ofrece una guardia.';
+  'Te avisa cuando se publican las guardias, el 8 de cada mes para cargar pedidos, cuando hay que cargarlas en HIBA 2 y cuando alguien ofrece una guardia o te propone un intercambio.';
 
 /**
  * Cartel del Inicio para que cada una active las notificaciones. No se puede

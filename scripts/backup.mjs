@@ -18,7 +18,7 @@ const PBKDF2_ITERATIONS = 310_000;
 const COLLECTIONS = [
   'residents', 'shifts', 'requests', 'swaps', 'offers', 'raffles', 'acks', 'publications', 'feedback',
   'rotations', 'events', 'calendarDays', 'monthConfigs', 'scheduleDrafts', 'privateNotes', 'tasks',
-  'notes', 'links', 'activity', 'meta',
+  'notes', 'links', 'activity', 'meta', 'trades', 'hibaRequests', 'hibaAcks',
 ];
 
 const password = process.env.BACKUP_PASSWORD;

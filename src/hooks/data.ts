@@ -6,6 +6,9 @@ import type {
   CamadaEvent,
   CamadaTask,
   GuardiaOffer,
+  HibaAck,
+  HibaRequest,
+  Trade,
   GuardiaRequest,
   InfoNote,
   LinkItem,
@@ -141,6 +144,24 @@ export function usePrivateNotes(ownerId?: string) {
 
 export function useOffers() {
   const { data } = useCollection<GuardiaOffer>('offers', [orderBy('date')]);
+  return data;
+}
+
+export function useTrades() {
+  const { data } = useCollection<Trade>('trades', [orderBy('createdAt', 'desc')]);
+  return data;
+}
+
+/** Pedidos de cargar las guardias en HIBA 2 (uno por mes). */
+export function useHibaRequests() {
+  const { data } = useCollection<HibaRequest>('hibaRequests', []);
+  return data;
+}
+
+/** "Ya las pedí en HIBA 2": las admins ven todas; cada una, las suyas. */
+export function useHibaAcks(residentId?: string) {
+  const constraints = residentId ? [where('residentId', '==', residentId)] : [];
+  const { data } = useCollection<HibaAck>('hibaAcks', constraints, [residentId]);
   return data;
 }
 

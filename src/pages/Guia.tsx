@@ -53,7 +53,7 @@ function GuiaTodas() {
           </li>
           <li>
             <b>Activá las notificaciones</b> desde el Inicio o Mi cuenta. Te avisan cuando se publican las guardias, el 8 de cada
-            mes para cargar pedidos y cuando alguien ofrece una guardia.
+            mes para cargar pedidos, cuando hay que cargarlas en HIBA 2 y cuando alguien ofrece una guardia, busca cambio o te propone un intercambio.
           </li>
           <li>¿Olvidaste la contraseña? En la pantalla de entrada escribí tu mail y tocá “Olvidé mi contraseña”.</li>
         </ol>
@@ -142,6 +142,17 @@ function GuiaTodas() {
           <li>
             <b><Go to="/cambios">Cambios</Go>:</b> registrás que le pasás una guardia a otra; ella lo confirma. Si no hay devolución
             inmediata, queda como deuda hasta que se salde. Las métricas cuentan a quien realmente la hizo.
+          </li>
+          <li>
+            <b>Ofrezco mi guardia / Busco cambio</b> (en Cambios): publicás una guardia tuya y les llega un aviso a todas. Si la
+            ofrecés, otra la toma con un toque. Si buscás cambio, te proponen una de las suyas a cambio (o la toman sin cambio).
+          </li>
+          <li>
+            <b>Intercambio directo</b> (en Cambios): “te doy mi 5 y me quedo con tu 12”. A la otra le llega un aviso; si acepta, las
+            dos guardias se intercambian solas y no queda deuda.
+          </li>
+          <li>
+            Todo esto se puede hasta el <b>día 20 del mes anterior</b> a la guardia: después ya tienen que estar cargadas en HIBA 2.
           </li>
           <li>
             <b><Go to="/sorteos">Sorteos</Go>:</b> sorteos al azar entre quienes elijas, con el resultado a la vista de todas.
@@ -242,6 +253,11 @@ function GuiaAdmin() {
             <b>Conformidad</b> (Admin → Conformidad): quién dijo OK, quién no respondió y quién pidió cambios. Si alguien dice que
             no, les llega un push. Corregí en el generador o el calendario y volvé a publicar: solo se les vuelve a preguntar a
             quienes les cambió algo. Después, “Marcar resuelto”.
+          </li>
+          <li>
+            <b>Carga en HIBA 2</b> (Admin → Conformidad): cuando haya que cargar las guardias de un mes, tocá “Pedir que las
+            carguen”. A quienes tienen guardias ese mes les llega un push y en el Inicio marcan “Ya las pedí”. Ves quién falta y
+            podés volver a avisarles solo a ellas.
           </li>
         </ol>
       </Section>
