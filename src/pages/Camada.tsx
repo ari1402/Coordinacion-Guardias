@@ -11,6 +11,7 @@ import { db } from '../firebase';
 import { useLinks, useNotes, useResidents, useResidentsById, useRotations, useTasks } from '../hooks/data';
 import { diffFields, logActivity } from '../lib/activity';
 import { shortDateLabel, todayISO } from '../lib/dates';
+import { safeUrl } from '../lib/labels';
 import type { CamadaTask, InfoNote, LinkItem, NoteCategory, TaskStatus } from '../types';
 import { NOTE_CATEGORIES } from '../types';
 
@@ -475,7 +476,7 @@ function TagButton({ active, onClick, children }: { active: boolean; onClick: ()
 function LinkCard({ link, canEdit, onTag }: { link: LinkItem; canEdit: boolean; onTag: (t: string) => void }) {
   return (
     <li className="bg-surface border border-border rounded-xl p-3 flex flex-col gap-1.5 min-w-0 [overflow-wrap:anywhere]">
-      <a href={link.url} target="_blank" rel="noreferrer" className="font-medium text-sm hover:text-accent">
+      <a href={safeUrl(link.url)} target="_blank" rel="noreferrer" className="font-medium text-sm hover:text-accent">
         {link.pinned && '📌 '}
         {link.title} ↗
       </a>

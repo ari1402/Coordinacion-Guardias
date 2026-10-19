@@ -31,7 +31,7 @@ import { useColors } from '../hooks/useColors';
 import { upcomingBirthdays } from '../lib/birthdays';
 import { addDaysISO, diffDays, gapsBetween, monthKey, monthLabel, resolveMonth, shiftMonthKey, shortDateLabel, todayISO } from '../lib/dates';
 import { computeAllEquityCounters, resolvePeriod } from '../lib/equity';
-import { TAG_EMOJI, TAG_LABEL } from '../lib/labels';
+import { safeUrl, TAG_EMOJI, TAG_LABEL } from '../lib/labels';
 import { winners } from '../lib/raffles';
 import { offerOpen } from '../lib/offers';
 import { awayMonths } from '../lib/rotations';
@@ -418,7 +418,7 @@ export default function Inicio() {
           ) : (
             <div className="flex flex-wrap gap-2">
               {pinned.map((l) => (
-                <a key={l.id} href={l.url} target="_blank" rel="noreferrer" className="text-sm px-3 py-1.5 rounded-lg bg-surface-2 hover:bg-accent-soft hover:text-accent transition-colors">
+                <a key={l.id} href={safeUrl(l.url)} target="_blank" rel="noreferrer" className="text-sm px-3 py-1.5 rounded-lg bg-surface-2 hover:bg-accent-soft hover:text-accent transition-colors">
                   {l.title} ↗
                 </a>
               ))}

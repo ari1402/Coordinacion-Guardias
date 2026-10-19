@@ -34,9 +34,13 @@ export default function Cambios() {
   const [generatesDebt, setGeneratesDebt] = useState(true);
   const [submitting, setSubmitting] = useState(false);
 
+  // Cada una registra cambios de sus propias guardias (las admins, de cualquiera).
   const shiftOptions = useMemo(
-    () => [...shifts].sort((a, b) => b.date.localeCompare(a.date)),
-    [shifts],
+    () =>
+      shifts
+        .filter((s) => isAdmin || s.actualResidentId === resident?.id)
+        .sort((a, b) => b.date.localeCompare(a.date)),
+    [shifts, isAdmin, resident],
   );
   const shiftById = useMemo(() => new Map(shifts.map((s) => [s.id, s])), [shifts]);
 

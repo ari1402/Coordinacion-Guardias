@@ -47,8 +47,10 @@ service cloud.firestore {
     }
 
     // El rol vive acá: nadie puede auto-promoverse a admin.
+    // Solo las residentes dadas de alta ven la lista (una cuenta de Auth sin
+    // perfil solo puede leer el suyo, que no existe).
     match /residents/{uid} {
-      allow read: if isSignedIn();
+      allow read: if isResident() || isSelf(uid);
       allow create, delete: if isAdmin();
       allow update: if isAdmin() || (isSelf(uid) && onlyChanged(['name', 'shortName', 'email', 'birthday', 'lastSeenAt', 'passwordChangedAt']));
     }
@@ -156,22 +158,34 @@ service cloud.firestore {
       allow delete: if isAdmin();
     }
 
+    // Un cambio lo pide quien cede la guardia (o una admin) y lo confirma quien
+    // la recibe: nadie puede pasarle su guardia a otra sin que acepte.
     match /swaps/{id} {
       allow read: if isResident();
       allow create: if isResident() && createdByMe()
-        && (request.resource.data.status == 'solicitado'
+        && ((request.resource.data.status == 'solicitado'
+            && (request.resource.data.fromResidentId == request.auth.uid || isAdmin()))
           || (request.resource.data.status == 'confirmado' && 'offerId' in request.resource.data && swapFromOffer()));
       allow update: if isAdmin() || (
         (isSelf(resource.data.toResidentId) || isSelf(resource.data.fromResidentId))
         && onlyChanged(['status', 'debtSettled'])
+        && (request.resource.data.status == resource.data.status
+          || (resource.data.status == 'solicitado'
+            && (request.resource.data.status == 'rechazado'
+              || (request.resource.data.status == 'confirmado' && isSelf(resource.data.toResidentId)))))
       );
       allow delete: if isAdmin();
     }
 
+    // Solo links web (http/https): nada de "javascript:" ni otros esquemas.
+    function webUrl() {
+      return request.resource.data.url is string && request.resource.data.url.matches('https?://.+');
+    }
+
     match /links/{id} {
       allow read: if isResident();
-      allow create: if isResident() && createdByMe();
-      allow update: if (isAdmin() || isSelf(resource.data.createdBy)) && keepsCreator()
+      allow create: if isResident() && createdByMe() && webUrl();
+      allow update: if (isAdmin() || isSelf(resource.data.createdBy)) && keepsCreator() && webUrl()
         || (isResident() && onlyChanged(['pinned']));
       allow delete: if isAdmin() || isSelf(resource.data.createdBy);
     }

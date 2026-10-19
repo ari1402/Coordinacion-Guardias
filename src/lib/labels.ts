@@ -37,3 +37,8 @@ export const LEGEND: { cls: string; label: string }[] = [
   { cls: 'bg-day-finde', label: 'Fin de semana' },
   { cls: 'bg-day-sin', label: 'Sin R1' },
 ];
+
+/** Solo links web: cualquier otro esquema (p. ej. "javascript:") no se abre. */
+export function safeUrl(url: string): string | undefined {
+  return /^https?:\/\//i.test(url.trim()) ? url.trim() : undefined;
+}
