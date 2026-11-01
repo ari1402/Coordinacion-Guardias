@@ -1,7 +1,7 @@
 import type { Rotation } from '../types';
 
 /** Carriles conocidos, en el orden en que se ofrecen en el editor. */
-export const ROTATION_CODES = ['QC', 'UCA', 'PREQUI INT', 'A EXT', 'OYT', 'Vacaciones'] as const;
+export const ROTATION_CODES = ['QC', 'PQI/QC', 'UCA', 'PREQUI INT', 'A EXT', 'OYT', 'Vacaciones'] as const;
 
 /** Carriles en los que no se hacen guardias (el generador no asigna ese mes). */
 export const NO_SHIFT_ROTATIONS = new Set(['Vacaciones']);
@@ -9,6 +9,7 @@ export const NO_SHIFT_ROTATIONS = new Set(['Vacaciones']);
 // Mismos colores que la planilla de carriles.
 const STYLES: Record<string, { bg: string; fg: string }> = {
   QC: { bg: '#e5484d', fg: '#ffffff' },
+  'PQI/QC': { bg: '#c2298a', fg: '#ffffff' },
   UCA: { bg: '#f5a524', fg: '#1f2033' },
   'PREQUI INT': { bg: '#26262b', fg: '#ffffff' },
   'A EXT': { bg: '#3e7bd6', fg: '#ffffff' },
