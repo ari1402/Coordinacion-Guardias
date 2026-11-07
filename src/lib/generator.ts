@@ -146,10 +146,12 @@ export interface ScheduleInput {
   /** Días en que alguien no puede por otra causa (p. ej. vacaciones por carril). */
   unavailable?: { residentId: string; dates: string[]; reason: string }[];
   /**
-   * Guardias de las últimas semanas del mes anterior: para no repetir el mismo
-   * día de la semana dos semanas seguidas al cambiar de mes.
+   * Guardias de las últimas dos semanas del mes anterior, para que las reglas
+   * que valen dentro del mes también miren el cambio de mes: mismo día de la
+   * semana, findes seguidos y sábados/preferiados. `sabPref` = era sábado o
+   * preferiado (si no viene, se toma solo el sábado).
    */
-  recentShifts?: { residentId: string; date: string }[];
+  recentShifts?: { residentId: string; date: string; sabPref?: boolean }[];
 }
 
 export type IssueCode =
@@ -162,6 +164,7 @@ export type IssueCode =
   | 'desparejo'
   | 'mismo_dia_semana'
   | 'doble_sab_pref'
+  | 'finde_seguido'
   | 'sabado_sin_jueves'
   | 'pedido_off'
   | 'pedido_on'
@@ -276,6 +279,14 @@ interface OnEntry {
   req: GuardiaRequest;
 }
 
+interface RecentShift {
+  dayNum: number; // negativo: días antes del primero del mes
+  date: string;
+  weekday: number;
+  finde: boolean;
+  sabPref: boolean;
+}
+
 interface Problem {
   rules: MonthRules;
   resIds: string[];
@@ -286,8 +297,8 @@ interface Problem {
   prior: PriorCounts[];
   priorLast: (number | null)[];
   priorLastThu: (number | null)[];
-  /** Por residente: dayNum (negativo) → fecha de sus guardias del mes anterior. */
-  recent: Map<number, string>[];
+  /** Por residente: sus guardias de las últimas dos semanas del mes anterior. */
+  recent: RecentShift[][];
   offAt: OffEntry[][];
   onReqs: OnEntry[];
   bloqueos: GuardiaRequest[];
@@ -395,10 +406,13 @@ function compile(input: ScheduleInput): Problem {
     p.lastShiftDate && isoWeekday(p.lastShiftDate) === 3 ? diffDays(base, p.lastShiftDate) : null,
   );
 
-  const recent = resIds.map(() => new Map<number, string>());
+  const recent = resIds.map((): RecentShift[] => []);
   for (const s of input.recentShifts ?? []) {
     const r = resIdx.get(s.residentId);
-    if (r !== undefined && s.date < base) recent[r].set(diffDays(base, s.date), s.date);
+    const dayNum = diffDays(base, s.date);
+    if (r === undefined || dayNum >= 0 || dayNum < -14) continue;
+    const weekday = isoWeekday(s.date);
+    recent[r].push({ dayNum, date: s.date, weekday, finde: weekday >= 4, sabPref: s.sabPref ?? weekday === 5 });
   }
 
   const onBySlot = slots.map(() => new Set<number>());
@@ -515,18 +529,35 @@ function run(p: Problem, assign: Int16Array, W: Weights, out: Collector | null):
     if (m.weekday === 5) sabado[r] = 1;
     wd[r * 7 + m.weekday]++;
 
-    // Mismo día de la semana dos semanas seguidas al cambiar de mes (p. ej.
-    // viernes 27/11 y viernes 4/12): dentro del mes ya lo cuenta "repite".
-    const prevWeek = p.rules.avoidSameWeekday ? p.recent[r].get(m.dayNum - 7) : undefined;
-    if (prevWeek) {
-      cost += W.sameWd;
-      out?.issues.push({
-        severity: 'soft',
-        code: 'mismo_dia_semana',
-        slotKey: m.key,
-        residentId: p.resIds[r],
-        message: `${shortDateLabel(m.date)}: ${name(r)} repite ${WEEKDAY_NAMES[m.weekday]} dos semanas seguidas (la anterior fue el ${shortDateLabel(prevWeek)}, del mes pasado).`,
-      });
+    // Cambio de mes: las reglas que dentro del mes miran el mes completo
+    // también miran las últimas dos semanas del mes anterior.
+    if (m.dayNum < 14) {
+      for (const e of p.recent[r]) {
+        const dist = m.dayNum - e.dayNum;
+        const issue = (code: IssueCode, text: string) =>
+          out?.issues.push({
+            severity: 'soft',
+            code,
+            slotKey: m.key,
+            residentId: p.resIds[r],
+            message: `${shortDateLabel(m.date)}: ${name(r)} ${text} (la anterior fue el ${shortDateLabel(e.date)}, del mes pasado).`,
+          });
+        // Mismo día de la semana (p. ej. viernes 27/11 y viernes 4/12).
+        if (p.rules.avoidSameWeekday && e.weekday === m.weekday && (dist === 7 || dist === 14)) {
+          cost += dist === 7 ? W.sameWd : W.sameWd / 2;
+          issue('mismo_dia_semana', `repite ${WEEKDAY_NAMES[m.weekday]} ${dist === 7 ? 'dos semanas seguidas' : 'a las dos semanas'}`);
+        }
+        // Dos findes seguidos (vie/sáb/dom del finde anterior y de este).
+        if (m.finde && e.finde && m.dayNum - m.weekday - (e.dayNum - e.weekday) === 7) {
+          cost += W.doubleSatPref;
+          issue('finde_seguido', 'tiene guardia dos findes seguidos');
+        }
+        // Dos sábados/preferiados en menos de dos semanas.
+        if (p.rules.avoidDoubleSatPref && m.sabPref && e.sabPref && dist <= 14) {
+          cost += W.doubleSatPref;
+          issue('doble_sab_pref', 'tiene otro sábado/preferiado en menos de dos semanas');
+        }
+      }
     }
 
     const prev = last[r];

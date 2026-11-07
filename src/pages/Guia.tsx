@@ -181,8 +181,9 @@ function GuiaTodas() {
             (31/12 hasta el domingo siguiente), las que las tienen en febrero. Sale solo de los carriles.
           </li>
           <li>
-            El generador mira también el final del mes anterior: evita que alguien repita el mismo día de la semana dos semanas
-            seguidas al cambiar de mes (por ejemplo, dos viernes seguidos).
+            El generador mira también las últimas dos semanas del mes anterior, así el cambio de mes no rompe las reglas: evita
+            repetir el mismo día de la semana dos semanas seguidas, guardia dos findes seguidos y dos sábados/preferiados
+            pegados (además de la distancia mínima y el finde libre después de un jueves, que ya miraba).
           </li>
           <li>Respeta la distancia mínima entre guardias.</li>
           <li>Si hacés guardia un jueves, ese finde queda libre hasta el primer día hábil.</li>

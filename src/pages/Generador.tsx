@@ -23,6 +23,7 @@ import { isBirthday, isBirthdayBlocked } from '../lib/birthdays';
 import {
   addDaysISO,
   effectiveMonthConfig,
+  isSabadoOrPreferiado,
   monthLabel,
   resolveMonth,
   shiftMonthKey,
@@ -122,13 +123,20 @@ export default function Generador() {
     [cfg.rules.fiestasPorVacaciones, monthKey, rotations, active],
   );
 
-  // Guardias de las últimas dos semanas del mes anterior (para no repetir día de semana al cambiar de mes).
+  // Guardias de las últimas dos semanas del mes anterior: las reglas del mes
+  // (día de semana, findes, sábados/preferiados) también miran el cambio de mes.
   const recentShifts = useMemo(() => {
     const from = addDaysISO(`${monthKey}-01`, -14);
+    const prevDays = new Map(
+      resolveMonth(shiftMonthKey(monthKey, -1), storedDays, monthConfigs).map((d) => [d.date, d]),
+    );
     return shifts
       .filter((s) => s.status !== 'cancelada' && s.date >= from && s.date < `${monthKey}-01`)
-      .map((s) => ({ residentId: s.actualResidentId, date: s.date }));
-  }, [shifts, monthKey]);
+      .map((s) => {
+        const day = prevDays.get(s.date);
+        return { residentId: s.actualResidentId, date: s.date, ...(day ? { sabPref: isSabadoOrPreferiado(day) } : {}) };
+      });
+  }, [shifts, monthKey, storedDays, monthConfigs]);
 
   const input: ScheduleInput = useMemo(
     () => ({
