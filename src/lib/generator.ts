@@ -101,6 +101,8 @@ const TURNS = [
   { pool: 'feriadoPool', cat: 'feriado', weight: FERIADO_ROTATION, code: 'feriado_turno', label: 'feriado' },
 ] as const;
 
+const WEEKDAY_NAMES = ['lunes', 'martes', 'miércoles', 'jueves', 'viernes', 'sábado', 'domingo'];
+
 const CATS = ['total', 'sabPref', 'largo', 'feriado', 'viernes', 'domingo', 'findeTotal', 'xl', 'jueves'] as const;
 type Cat = (typeof CATS)[number];
 
@@ -143,6 +145,11 @@ export interface ScheduleInput {
   holidayDates?: string[];
   /** Días en que alguien no puede por otra causa (p. ej. vacaciones por carril). */
   unavailable?: { residentId: string; dates: string[]; reason: string }[];
+  /**
+   * Guardias de las últimas semanas del mes anterior: para no repetir el mismo
+   * día de la semana dos semanas seguidas al cambiar de mes.
+   */
+  recentShifts?: { residentId: string; date: string }[];
 }
 
 export type IssueCode =
@@ -279,6 +286,8 @@ interface Problem {
   prior: PriorCounts[];
   priorLast: (number | null)[];
   priorLastThu: (number | null)[];
+  /** Por residente: dayNum (negativo) → fecha de sus guardias del mes anterior. */
+  recent: Map<number, string>[];
   offAt: OffEntry[][];
   onReqs: OnEntry[];
   bloqueos: GuardiaRequest[];
@@ -351,7 +360,11 @@ function compile(input: ScheduleInput): Problem {
   const reason = slots.map((s) =>
     residents.map((res, r) => {
       const b = blockedReason.get(`${r}|${s.date}`);
-      if (b !== undefined) return b === 'Vacaciones' ? 'vacaciones' : `bloqueo (${b || 'sin motivo'})`;
+      if (b !== undefined) {
+        if (b === 'Vacaciones') return 'vacaciones';
+        if (b.startsWith('fiesta:')) return b.slice('fiesta:'.length);
+        return `bloqueo (${b || 'sin motivo'})`;
+      }
       if (isBirthdayBlocked(s.date, res)) return 'cumpleaños o víspera';
       return null;
     }),
@@ -382,6 +395,12 @@ function compile(input: ScheduleInput): Problem {
     p.lastShiftDate && isoWeekday(p.lastShiftDate) === 3 ? diffDays(base, p.lastShiftDate) : null,
   );
 
+  const recent = resIds.map(() => new Map<number, string>());
+  for (const s of input.recentShifts ?? []) {
+    const r = resIdx.get(s.residentId);
+    if (r !== undefined && s.date < base) recent[r].set(diffDays(base, s.date), s.date);
+  }
+
   const onBySlot = slots.map(() => new Set<number>());
   for (const req of onReqs) for (const i of req.slots) onBySlot[i].add(req.r);
   const pool = (i: number) => residents.map((_, r) => r).filter((r) => eligible[i][r] && !offAt[i].some((e) => e.r === r));
@@ -401,6 +420,7 @@ function compile(input: ScheduleInput): Problem {
     prior,
     priorLast,
     priorLastThu,
+    recent,
     offAt,
     onReqs,
     bloqueos,
@@ -494,6 +514,20 @@ function run(p: Problem, assign: Int16Array, W: Weights, out: Collector | null):
     if (m.juevesFeliz || m.xl) juevesBueno[r] = 1;
     if (m.weekday === 5) sabado[r] = 1;
     wd[r * 7 + m.weekday]++;
+
+    // Mismo día de la semana dos semanas seguidas al cambiar de mes (p. ej.
+    // viernes 27/11 y viernes 4/12): dentro del mes ya lo cuenta "repite".
+    const prevWeek = p.rules.avoidSameWeekday ? p.recent[r].get(m.dayNum - 7) : undefined;
+    if (prevWeek) {
+      cost += W.sameWd;
+      out?.issues.push({
+        severity: 'soft',
+        code: 'mismo_dia_semana',
+        slotKey: m.key,
+        residentId: p.resIds[r],
+        message: `${shortDateLabel(m.date)}: ${name(r)} repite ${WEEKDAY_NAMES[m.weekday]} dos semanas seguidas (la anterior fue el ${shortDateLabel(prevWeek)}, del mes pasado).`,
+      });
+    }
 
     const prev = last[r];
     if (prev !== null) {
@@ -627,7 +661,7 @@ function run(p: Problem, assign: Int16Array, W: Weights, out: Collector | null):
             severity: 'soft',
             code: 'mismo_dia_semana',
             residentId: p.resIds[r],
-            message: `${name(r)} repite ${['lunes', 'martes', 'miércoles', 'jueves', 'viernes', 'sábado', 'domingo'][d]} en el mes.`,
+            message: `${name(r)} repite ${WEEKDAY_NAMES[d]} en el mes.`,
           });
         }
       }

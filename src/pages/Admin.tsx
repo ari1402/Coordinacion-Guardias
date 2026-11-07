@@ -38,6 +38,7 @@ const RULE_LABELS: Record<string, string> = {
   avoidDoubleSatPref: 'Máx. un sáb/preferiado',
   sabadoComunConJueves: 'Sábado → jueves feliz',
   juevesLibraFinde: 'Jueves libera el finde',
+  fiestasPorVacaciones: 'Fiestas según vacaciones',
 };
 
 export default function Admin() {
@@ -182,6 +183,7 @@ function RulesForm({ month, configs }: { month: string; configs: MonthConfig[] }
           {toggle('avoidDoubleSatPref', 'Máximo un sábado/preferiado por persona')}
           {toggle('sabadoComunConJueves', 'Quien tenga un sábado, que tenga un jueves feliz')}
           {toggle('juevesLibraFinde', 'Guardia de jueves → ese finde libre hasta el primer día hábil')}
+          {toggle('fiestasPorVacaciones', 'Navidad la cubren las de vacaciones en enero; Año nuevo, las de febrero')}
         </div>
         <PrivateNotesEditor month={month} />
         <div className="flex gap-2 items-center">

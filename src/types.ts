@@ -68,6 +68,12 @@ export interface MonthRules {
    * no vuelve a tener guardia hasta el primer día hábil siguiente.
    */
   juevesLibraFinde: boolean;
+  /**
+   * Navidad (24/12 hasta el finde siguiente) la cubren quienes tienen
+   * vacaciones en enero; Año nuevo (31/12 hasta el finde siguiente), quienes
+   * las tienen en febrero (según los carriles).
+   */
+  fiestasPorVacaciones: boolean;
 }
 
 /**

@@ -3,6 +3,7 @@ import type { CalendarDay, GuardiaRequest, MonthConfig, Resident } from '../type
 import { DEFAULT_RULES, addDaysISO, effectiveMonthConfig, hasTag, protectingThursday, resolveMonth } from './dates';
 import { evaluateDraft, generateOptions, priorFromCounters, slotKey } from './generator';
 import { secureShuffle } from './random';
+import { fiestaBlocks, fiestasForMonth, fiestaUnavailable } from './fiestas';
 import { upcomingBirthdays } from './birthdays';
 import { buildBreakdown } from './breakdown';
 import { computeEquityCounters } from './equity';
@@ -377,5 +378,62 @@ describe('findes enteros aunque crucen de mes', () => {
       }).gabi;
       expect(nb.cumFindesLibres).toBe(total);
     }
+  });
+});
+
+describe('fiestas y cambio de mes', () => {
+  const ids = residents.map((r) => r.id);
+  // ana, bruno, caro: vacaciones en enero · dani, eli, fede, gabi: en febrero
+  const rotations = ids.map((id, i) => ({ id, months: { [i < 3 ? '2027-01' : '2027-02']: 'Vacaciones' } }));
+  const fer = (date: string) => ({ id: date, date, isHoliday: true });
+  const dicDays = [fer('2026-12-08'), fer('2026-12-24'), fer('2026-12-25'), fer('2026-12-31')];
+
+  it('Navidad es del 24 al domingo siguiente y Año nuevo del 31 al domingo siguiente', () => {
+    const [navidad, anioNuevo] = fiestaBlocks(2026);
+    expect(navidad.dates).toEqual(['2026-12-24', '2026-12-25', '2026-12-26', '2026-12-27']);
+    expect(navidad.groupMonth).toBe('2027-01');
+    expect(anioNuevo.dates).toEqual(['2026-12-31', '2027-01-01', '2027-01-02', '2027-01-03']);
+    expect(anioNuevo.groupMonth).toBe('2027-02');
+  });
+
+  it('cada fiesta la cubren quienes tienen vacaciones en el mes que corresponde', () => {
+    const dic = fiestasForMonth('2026-12', rotations, ids);
+    expect(dic.map((f) => [f.block.key, f.dates.length, f.coverers])).toEqual([
+      ['navidad', 4, ['ana', 'bruno', 'caro']],
+      ['anio_nuevo', 1, ['dani', 'eli', 'fede', 'gabi']],
+    ]);
+    const ene = fiestasForMonth('2027-01', rotations, ids);
+    expect(ene.map((f) => [f.block.key, f.dates])).toEqual([['anio_nuevo', ['2027-01-01', '2027-01-02', '2027-01-03']]]);
+    // Sin carriles cargados no se restringe nada.
+    expect(fiestasForMonth('2026-12', [], ids)).toEqual([]);
+  });
+
+  it('el generador respeta quién cubre Año nuevo', () => {
+    const ene = resolveMonth('2027-01', [fer('2027-01-01')], configs);
+    const fiestas = fiestasForMonth('2027-01', rotations, ids);
+    const [opt] = generateOptions(
+      { days: ene, residents, requests: [], rules: DEFAULT_RULES, unavailable: fiestaUnavailable(fiestas, ids) },
+      { seed: 3, profiles: ['equidad'] },
+    );
+    for (const d of ['2027-01-01', '2027-01-02', '2027-01-03']) {
+      expect(['dani', 'eli', 'fede', 'gabi']).toContain(opt.slots.find((s) => s.date === d)?.residentId);
+    }
+    expect(opt.evaluation.issues.filter((i) => i.code === 'no_disponible')).toHaveLength(0);
+  });
+
+  it('no repite el mismo día de la semana dos semanas seguidas al cambiar de mes', () => {
+    const dic = resolveMonth('2026-12', dicDays, configs);
+    // El viernes 27/11 lo hizo ana; el viernes 4/12 no debería tocarle de nuevo.
+    for (const seed of [1, 2, 3, 4, 5]) {
+      const [opt] = generateOptions(
+        { days: dic, residents, requests: [], rules: DEFAULT_RULES, recentShifts: [{ residentId: 'ana', date: '2026-11-27' }] },
+        { seed, profiles: ['equidad'] },
+      );
+      expect(opt.slots.find((s) => s.date === '2026-12-04')?.residentId).not.toBe('ana');
+    }
+    // Y si se le pone a mano, aparece el aviso.
+    const slots = resolveMonth('2026-12', dicDays, configs).map((d) => ({ date: d.date, slotIndex: 0, residentId: d.date === '2026-12-04' ? 'ana' : null }));
+    const ev = evaluateDraft({ days: dic, residents, requests: [], rules: DEFAULT_RULES, recentShifts: [{ residentId: 'ana', date: '2026-11-27' }] }, slots);
+    expect(ev.issues.some((i) => i.code === 'mismo_dia_semana' && i.message.includes('dos semanas seguidas'))).toBe(true);
   });
 });
