@@ -25,6 +25,7 @@ import { logActivity } from '../lib/activity';
 import { DEFAULT_DISABLED_NOTE, disableSlot, enableSlot } from '../lib/disableSlot';
 import { buildSlots } from '../lib/generator';
 import ExportMonthModal from '../components/ExportMonthModal';
+import { PrevDayCell, PrevMonthLabel, prevTailDates } from '../components/PrevDays';
 import { PrivateNotesCard } from '../components/PrivateNotes';
 import { LEGEND, TAG_EMOJI, TAG_LABEL, dayBgClass } from '../lib/labels';
 import type { CamadaEvent, GuardiaRequest, Resident, ResolvedDay, Shift, ShiftStatus } from '../types';
@@ -93,8 +94,16 @@ export default function Calendario() {
                 {WEEKDAY_SHORT[i as 0]}
               </div>
             ))}
-            {Array.from({ length: days[0]?.weekday ?? 0 }, (_, i) => (
-              <div key={`e${i}`} />
+            <PrevMonthLabel monthKey={monthKey} />
+            {prevTailDates(monthKey).map((d) => (
+              <PrevDayCell
+                key={d}
+                date={d}
+                people={shifts.filter((s) => s.date === d && s.status !== 'cancelada').sort((a, b) => a.slotIndex - b.slotIndex).map((s) => s.actualResidentId)}
+                name={(id) => byId.get(id)?.shortName ?? '?'}
+                color={color}
+                className="min-h-[52px] sm:min-h-[64px]"
+              />
             ))}
             {days.map((day) => {
               const list = shiftsByDate.get(day.date) ?? [];

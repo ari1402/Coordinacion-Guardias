@@ -95,6 +95,9 @@ function Reglas({ initialMonth }: { initialMonth: string }) {
       <div className="grid gap-4 lg:grid-cols-5">
         <div className="lg:col-span-2 flex flex-col gap-4">
           <RulesForm key={`${month}-${monthConfigs.find((c) => c.id === month) ? 'own' : 'inh'}`} month={month} configs={monthConfigs} />
+          <Card title="🔒 Notas y acuerdos del mes">
+            <PrivateNotesEditor key={month} month={month} />
+          </Card>
           <HolidayImport defaultYear={Number(month.slice(0, 4))} />
         </div>
         <DaysEditor month={month} storedDays={storedDays} configs={monthConfigs} />
@@ -110,7 +113,7 @@ function RulesForm({ month, configs }: { month: string; configs: MonthConfig[] }
   const [saved, setSaved] = useState(false);
 
   async function save() {
-    await setDoc(doc(db, 'monthConfigs', month), { id: month, weekdayRequirements: reqs, rules });
+    await setDoc(doc(db, 'monthConfigs', month), { id: month, weekdayRequirements: reqs, rules }, { merge: true });
     const before = { ...eff.weekdayRequirements, ...eff.rules } as Record<string, unknown>;
     const after = { ...reqs, ...rules } as Record<string, unknown>;
     await logActivity({
@@ -183,7 +186,6 @@ function RulesForm({ month, configs }: { month: string; configs: MonthConfig[] }
           {toggle('sabadoComunConJueves', 'Quien tenga un sábado, que tenga un jueves feliz')}
           {toggle('juevesLibraFinde', 'Guardia de jueves → ese finde libre hasta el primer día hábil')}
         </div>
-        <PrivateNotesEditor month={month} />
         <div className="flex gap-2 items-center">
           <button onClick={save} className={btnPrimary}>
             Guardar reglas

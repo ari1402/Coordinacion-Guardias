@@ -1,48 +1,76 @@
 import { deleteDoc, doc, setDoc } from 'firebase/firestore';
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useAuthContext } from '../context/AuthContext';
 import { db } from '../firebase';
 import { usePrivateNotes } from '../hooks/data';
 import { monthLabel } from '../lib/dates';
-import { Card, btnSecondary, inputCls } from './ui';
+import { Card, inputCls } from './ui';
 
-/** Editor de las notas privadas del mes (solo las ve quien las escribe). */
+/**
+ * Editor de las notas privadas del mes (solo las ve quien las escribe). Se
+ * guardan solas: un momento después de dejar de escribir y al salir del campo.
+ */
 export function PrivateNotesEditor({ month }: { month: string }) {
   const { resident: me } = useAuthContext();
   const note = usePrivateNotes(me?.id).find((n) => n.month === month);
-  const [text, setText] = useState('');
+  const stored = note?.text ?? '';
+  const [text, setText] = useState(stored);
   const [status, setStatus] = useState<string | null>(null);
-  useEffect(() => setText(note?.text ?? ''), [note?.text, month]);
+  const editing = useRef(false);
+  const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  // Si cambia lo guardado (otro dispositivo) y no estás escribiendo, se actualiza.
+  useEffect(() => {
+    if (!editing.current) setText(stored);
+  }, [stored]);
+  useEffect(() => () => {
+    if (timer.current) clearTimeout(timer.current);
+  }, []);
   if (!me) return null;
   const id = `${month}_${me.id}`;
 
-  async function save() {
-    if (text.trim()) {
-      await setDoc(doc(db, 'privateNotes', id), { id, month, ownerId: me!.id, text: text.trim(), updatedAt: new Date().toISOString() });
-    } else if (note) {
-      await deleteDoc(doc(db, 'privateNotes', id));
+  async function save(value: string) {
+    if (timer.current) clearTimeout(timer.current);
+    if (value.trim() === stored) {
+      editing.current = false;
+      return;
     }
-    setStatus('Guardado ✓');
-    setTimeout(() => setStatus(null), 2000);
+    setStatus('Guardando…');
+    try {
+      if (value.trim()) {
+        await setDoc(doc(db, 'privateNotes', id), { id, month, ownerId: me!.id, text: value.trim(), updatedAt: new Date().toISOString() });
+      } else if (note) {
+        await deleteDoc(doc(db, 'privateNotes', id));
+      }
+      setStatus('Guardado ✓');
+      setTimeout(() => setStatus(null), 2000);
+    } catch (e) {
+      setStatus(`No se pudo guardar: ${(e as Error).message}`);
+    } finally {
+      editing.current = false;
+    }
   }
 
   return (
     <label className="flex flex-col gap-1 text-sm">
-      🔒 Notas y acuerdos del mes
-      <span className="text-xs text-text-dim">Solo las ves vos (ni el grupo ni la otra admin). Se guardan aparte de las reglas.</span>
+      <span className="text-xs text-text-dim">
+        Solo las ves vos (ni el grupo ni la otra admin). Se guardan solas mientras escribís.
+      </span>
       <textarea
         value={text}
-        onChange={(e) => setText(e.target.value)}
-        rows={3}
+        onChange={(e) => {
+          editing.current = true;
+          setText(e.target.value);
+          if (timer.current) clearTimeout(timer.current);
+          const value = e.target.value;
+          timer.current = setTimeout(() => save(value), 1200);
+        }}
+        onBlur={() => save(text)}
+        rows={4}
         className={inputCls}
         placeholder="Ej.: martes 3 sin R1; Pérez compensa sáb/preferiado de octubre…"
       />
-      <span className="flex items-center gap-2">
-        <button type="button" onClick={save} disabled={text.trim() === (note?.text ?? '')} className={btnSecondary}>
-          Guardar notas
-        </button>
-        {status && <span className="text-xs text-ok">{status}</span>}
-      </span>
+      <span className="text-xs text-ok min-h-[1rem]">{status}</span>
     </label>
   );
 }

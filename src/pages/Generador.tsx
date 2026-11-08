@@ -5,6 +5,7 @@ import Badge from '../components/Badge';
 import ImportTextModal from '../components/ImportTextModal';
 import PersonBreakdownGrid from '../components/PersonBreakdown';
 import OptionCalendarModal from '../components/OptionCalendar';
+import { PrevDaysStrip } from '../components/PrevDays';
 import { Card, Dot, Modal, MonthNav, PageHeader, Segmented, btnPrimary, btnSecondary, inputCls } from '../components/ui';
 import { useAuthContext } from '../context/AuthContext';
 import {
@@ -22,6 +23,7 @@ import { useColors } from '../hooks/useColors';
 import { currentMonthKey, useMonth } from '../hooks/useMonth';
 import { isBirthday, isBirthdayBlocked } from '../lib/birthdays';
 import {
+  addDaysISO,
   effectiveMonthConfig,
   monthLabel,
   resolveMonth,
@@ -159,6 +161,15 @@ export default function Generador() {
     }
     return m;
   }, [evaluation, isEmpty]);
+
+  // Últimos días del mes anterior (para ver con qué viene cada una).
+  const prevAssignments = useMemo(() => {
+    const from = addDaysISO(`${monthKey}-01`, -14);
+    return shifts
+      .filter((s) => s.status !== 'cancelada' && s.date >= from && s.date < `${monthKey}-01`)
+      .sort((a, b) => a.date.localeCompare(b.date) || a.slotIndex - b.slotIndex)
+      .map((s) => ({ date: s.date, residentId: s.actualResidentId }));
+  }, [shifts, monthKey]);
 
   const loading = lc || ls || ld;
   const monthOptions = options?.month === monthKey ? options.list : null;
@@ -397,6 +408,7 @@ export default function Generador() {
                   </p>
                 );
               })}
+            <PrevDaysStrip monthKey={monthKey} assignments={prevAssignments} name={nameOf} color={color} />
             <div className="2xl:overflow-x-auto 2xl:-mx-1 2xl:px-1">
               {/* Celular, tablet y compu común: lista de días; pantallas muy anchas: grilla semanal. */}
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 2xl:grid-cols-7 gap-1.5 2xl:min-w-[880px]">
@@ -493,7 +505,7 @@ export default function Generador() {
           </Card>
           {calendarFor && (
             <OptionCalendarModal
-              key={`${detailView}-${calendarFor.person ?? 'todas'}`}
+              key={calendarFor.person ?? 'todas'}
               open
               onClose={() => setCalendarFor(null)}
               title={monthOptions?.find((o) => o.profile === detailView)?.label ?? 'Editor'}
@@ -503,6 +515,20 @@ export default function Generador() {
               residents={active}
               color={color}
               initialPerson={calendarFor.person}
+              prevAssignments={prevAssignments}
+              issueBySlot={monthOptions?.some((o) => o.profile === detailView) ? undefined : issueBySlot}
+              dayMarks={dayInfo}
+              editNote={
+                monthOptions?.some((o) => o.profile === detailView)
+                  ? 'Al cambiar algo, esta opción pasa al editor con tu cambio.'
+                  : undefined
+              }
+              onChange={(date, slotIndex, residentId) => {
+                const viewed = monthOptions?.find((o) => o.profile === detailView);
+                const base = viewed ? viewed.slots : draft;
+                setDraft(base.map((s) => (s.date === date && s.slotIndex === slotIndex ? { ...s, residentId, locked: true } : s)));
+                if (viewed) setDetailView('editor');
+              }}
             />
           )}
 
