@@ -46,7 +46,7 @@ const SNAPSHOT: { key: keyof EquityCounters; label: string; benefit?: boolean; h
   { key: 'totalGuardias', label: 'Guardias totales', hint: 'hechas hasta ahora y las de este mes' },
   { key: 'sabadosYPreferiados', label: 'Sábados + preferiados', hint: 'las que cortan el finde' },
   { key: 'sabadosSinCompensar', label: 'Sábados sin jueves', hint: 'sin jueves feliz o XL ese mes' },
-  { key: 'findeTotal', label: 'Vie + sáb + dom', hint: 'guardias de fin de semana' },
+  { key: 'findeTotal', label: 'Guardias vie/sáb/dom', hint: 'cuántas guardias hiciste viernes, sábado o domingo' },
   { key: 'feriados', label: 'Feriados', hint: 'guardias en feriado' },
   { key: 'findesXL', label: 'Findes XL', benefit: true, hint: 'jueves antes de lunes feriado' },
   { key: 'juevesFelices', label: 'Jueves felices', benefit: true, hint: 'jueves comunes' },
