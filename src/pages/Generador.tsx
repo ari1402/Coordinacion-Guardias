@@ -6,7 +6,7 @@ import ImportTextModal from '../components/ImportTextModal';
 import PersonBreakdownGrid from '../components/PersonBreakdown';
 import OptionCalendarModal from '../components/OptionCalendar';
 import WrittenRulesCard from '../components/WrittenRules';
-import { PrevDaysStrip } from '../components/PrevDays';
+import { NextDaysStrip, PrevDaysStrip } from '../components/PrevDays';
 import { Card, Dot, Modal, MonthNav, PageHeader, Segmented, btnPrimary, btnSecondary, inputCls } from '../components/ui';
 import { useAuthContext } from '../context/AuthContext';
 import {
@@ -197,6 +197,20 @@ export default function Generador() {
       .sort((a, b) => a.date.localeCompare(b.date) || a.slotIndex - b.slotIndex)
       .map((s) => ({ date: s.date, residentId: s.actualResidentId }));
   }, [shifts, monthKey]);
+
+  // Primeros días del mes siguiente: lo publicado o, si no hay, el borrador guardado.
+  const nextAssignments = useMemo(() => {
+    const nk = shiftMonthKey(monthKey, 1);
+    const pub = shifts
+      .filter((s) => s.status !== 'cancelada' && s.date.startsWith(nk))
+      .sort((a, b) => a.date.localeCompare(b.date) || a.slotIndex - b.slotIndex)
+      .map((s) => ({ date: s.date, residentId: s.actualResidentId }));
+    if (pub.length) return pub;
+    return (drafts.find((d) => d.id === nk)?.slots ?? [])
+      .filter((s) => s.residentId)
+      .sort((a, b) => a.date.localeCompare(b.date) || a.slotIndex - b.slotIndex)
+      .map((s) => ({ date: s.date, residentId: s.residentId! }));
+  }, [shifts, drafts, monthKey]);
 
   const loading = lc || ls || ld;
   const monthOptions = options?.month === monthKey ? options.list : null;
@@ -483,6 +497,7 @@ export default function Generador() {
                 ))}
               </div>
             </div>
+            <NextDaysStrip monthKey={monthKey} assignments={nextAssignments} name={nameOf} color={color} />
           </Card>
 
           <div id="detalle-personas" />
@@ -555,6 +570,7 @@ export default function Generador() {
               color={color}
               initialPerson={calendarFor.person}
               prevAssignments={prevAssignments}
+              nextAssignments={nextAssignments}
               issueBySlot={monthOptions?.some((o) => o.profile === detailView) ? undefined : issueBySlot}
               dayMarks={dayInfo}
               editNote={

@@ -4,7 +4,7 @@ import { monthLabel, shortDateLabel } from '../lib/dates';
 import { TAG_EMOJI, dayBgClass } from '../lib/labels';
 import type { Suggestion } from '../lib/generator';
 import type { DraftSlot, Resident, ResolvedDay } from '../types';
-import { PrevDayCell, PrevMonthLabel, prevTailDates, type PrevAssignment } from './PrevDays';
+import { NextDaysCells, NextMonthLabel, PrevDayCell, PrevMonthLabel, prevTailDates, type PrevAssignment } from './PrevDays';
 import { Dot, Modal, inputCls } from './ui';
 
 const WD = ['Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb', 'Dom'];
@@ -31,6 +31,7 @@ export default function OptionCalendarModal({
   color,
   initialPerson,
   prevAssignments = [],
+  nextAssignments = [],
   onChange,
   editNote,
   issueBySlot,
@@ -48,6 +49,7 @@ export default function OptionCalendarModal({
   color: (id: string) => string;
   initialPerson?: string | null;
   prevAssignments?: PrevAssignment[];
+  nextAssignments?: PrevAssignment[];
   onChange?: (date: string, slotIndex: number, residentId: string | null) => void;
   /** Aclaración para el que edita (p. ej. "al cambiar, esta opción pasa al editor"). */
   editNote?: string;
@@ -164,6 +166,8 @@ export default function OptionCalendarModal({
             </Tag>
           );
         })}
+        <NextMonthLabel monthKey={monthKey} />
+        <NextDaysCells monthKey={monthKey} assignments={nextAssignments} name={name} color={color} />
       </div>
 
       {onChange && selDay && (

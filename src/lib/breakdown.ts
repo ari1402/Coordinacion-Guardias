@@ -1,5 +1,5 @@
 import type { DayTag, DraftSlot, ResolvedDay, Weekday } from '../types';
-import { addDaysISO, diffDays, hasTag, isBusinessDay, isSabadoOrPreferiado, weekendBlock } from './dates';
+import { addDaysISO, diffDays, hasTag, isBusinessDay, isSabadoOrPreferiado, isSpecialHolidayBlock, isoWeekday, weekendBlock, weekendFreeness } from './dates';
 import type { PriorCounts } from './generator';
 
 export interface PersonShift {
@@ -61,14 +61,15 @@ export function buildBreakdown(
   const saturdays = days.filter((d) => d.weekday === 5);
   const holidays = new Set([...extraHolidays, ...days.filter((d) => d.isHoliday).map((d) => d.date)]);
   const isHoliday = (d: string) => holidays.has(d);
-  const blocks = saturdays.map((sat) => weekendBlock(sat.date, isHoliday));
+  // Navidad y Año Nuevo no cuentan (ni como libres ni en el total).
+  const blocks = saturdays.map((sat) => weekendBlock(sat.date, isHoliday)).filter((b) => !isSpecialHolidayBlock(b));
   // Finde que viene del mes anterior (p. ej. sáb 31/10 + dom 1/11): también lo
   // decide este mes, así que se cuenta acá.
   const first = days[0]?.date;
   let boundary: ReturnType<typeof weekendBlock> | null = null;
   if (first && !isBusinessDay(first, isHoliday)) {
     const start = weekendBlock(first, isHoliday);
-    if (start.days[0] < first && !blocks.some((b) => b.days.includes(first))) {
+    if (start.days[0] < first && !blocks.some((b) => b.days.includes(first)) && !isSpecialHolidayBlock(start)) {
       blocks.unshift(start);
       boundary = start;
     }
@@ -90,12 +91,12 @@ export function buildBreakdown(
         return { date: s.date, weekday: day.weekday, tags: day.tags, gapBefore, locked: s.locked, raffle: !!s.raffleId };
       });
       const list = shifts.map((s) => dayByDate.get(s.date)!);
-      const libres = away.has(id) ? [] : blocks.filter((b) => [b.eve, ...b.days].every((d) => !dates.has(d)));
+      const libres = away.has(id) ? [] : blocks.filter((b) => weekendFreeness(b, (d) => dates.has(d)).free);
       // El acumulado previo ya contó el finde que cruza de mes como libre si en el
       // mes anterior no trabajó esos días: no se cuenta dos veces.
       const out = new Set(outside[id] ?? []);
-      const boundaryInPrior = !!boundary && [boundary.eve, ...boundary.days].filter((d) => d < first!).every((d) => !out.has(d));
-      const largosLibres = libres.filter((b) => b.long && !dates.has(addDaysISO(b.eve, -1)));
+      const boundaryInPrior = !!boundary && weekendFreeness(boundary, (d) => d < first! && out.has(d)).free;
+      const largosLibres = libres.filter((b) => b.long && weekendFreeness(b, (d) => dates.has(d)).full && !dates.has(addDaysISO(b.eve, -1)));
       const sabPref = list.filter(isSabadoOrPreferiado).length;
       const feriados = list.filter((d) => d.isHoliday).length;
       return [
@@ -111,7 +112,11 @@ export function buildBreakdown(
           juevesFelices: list.filter((d) => hasTag(d, 'jueves_feliz')).length,
           findeTotal: list.filter((d) => d.weekday >= 4).length,
           findesLibres: libres.length,
-          findesLibres100: libres.filter((b) => !dates.has(addDaysISO(b.eve, -1))).length,
+          findesLibres100: libres.filter((b) => {
+            const full = weekendFreeness(b, (d) => dates.has(d)).full;
+            const sat = b.days.find((d) => isoWeekday(d) === 5) ?? b.days[0];
+            return !dates.has(addDaysISO(full ? b.eve : addDaysISO(sat, -1), -1));
+          }).length,
           findesLargosLibres: largosLibres.length,
           findesLargosDelMes: blocks.filter((b) => b.long).length,
           findesDelMes: blocks.length,

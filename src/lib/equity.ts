@@ -1,5 +1,5 @@
 import type { CalendarDay, EquityCounters, MonthConfig, ResolvedDay, Shift } from '../types';
-import { addDaysISO, gapsBetween, hasTag, monthKey, monthsBetween, resolveMonths, weekendBlock } from './dates';
+import { addDaysISO, gapsBetween, hasTag, isSpecialHolidayBlock, monthKey, monthsBetween, resolveMonths, weekendBlock, weekendFreeness } from './dates';
 
 /**
  * Contadores de equidad de un residente. Usa siempre `actualResidentId`
@@ -100,13 +100,15 @@ export function computeEquityCounters(
     if (day.weekday !== 5) continue; // un finde se evalúa una vez, en su sábado
     if (away?.has(monthKey(day.date))) continue;
     const block = weekendBlock(day.date, isHoliday);
-    const free = [block.eve, ...block.days].every((d) => !occupied.has(d));
+    if (isSpecialHolidayBlock(block)) continue; // Navidad y Año Nuevo no cuentan
+    const { free, full } = weekendFreeness(block, (d) => occupied.has(d));
     if (!free) continue;
-    const xl = block.long && occupied.has(addDaysISO(block.eve, -1)); // ya cuenta como finde XL
+    const xl = block.long && full && occupied.has(addDaysISO(block.eve, -1)); // ya cuenta como finde XL
     c.findesLibresA++;
-    if (block.long && !xl) c.findesLibresLargos++;
-    else if (!block.long) c.findesLibresComunes++;
-    if (!occupied.has(addDaysISO(block.eve, -1))) c.findesLibresB++;
+    if (block.long && full && !xl) c.findesLibresLargos++;
+    else if (!(block.long && full)) c.findesLibresComunes++;
+    // 100%: además no arranca con posguardia.
+    if (!occupied.has(addDaysISO(full ? block.eve : addDaysISO(day.date, -1), -1))) c.findesLibresB++;
   }
 
   const gaps = gapsBetween(mine.map((s) => s.date));

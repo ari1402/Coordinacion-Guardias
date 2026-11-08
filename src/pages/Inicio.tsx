@@ -50,7 +50,7 @@ const SNAPSHOT: { key: keyof EquityCounters; label: string; benefit?: boolean; h
   { key: 'feriados', label: 'Feriados', hint: 'guardias en feriado' },
   { key: 'findesXL', label: 'Findes XL', benefit: true, hint: 'jueves antes de lunes feriado' },
   { key: 'juevesFelices', label: 'Jueves felices', benefit: true, hint: 'jueves comunes' },
-  { key: 'findesLibresComunes', label: 'Findes comunes libres', benefit: true, hint: 'sin guardia vie a la noche, sáb y dom' },
+  { key: 'findesLibresComunes', label: 'Findes comunes libres', benefit: true, hint: 'sin guardia vie a la noche, sáb y dom (Navidad y Año Nuevo no cuentan)' },
   { key: 'findesLibresLargos', label: 'Findes largos libres', benefit: true, hint: 'libre desde la noche anterior hasta el feriado' },
 ];
 

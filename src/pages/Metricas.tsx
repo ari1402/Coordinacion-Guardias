@@ -21,7 +21,7 @@ const COLUMNS: { key: keyof EquityCounters; label: string; sense: Sense; title: 
   { key: 'feriados', label: 'Feriados', sense: 'burden', title: 'Guardias en feriado' },
   { key: 'findesXL', label: 'Finde XL', sense: 'benefit', title: 'Jueves antes de lunes feriado' },
   { key: 'juevesFelices', label: 'J. feliz', sense: 'benefit', title: 'Jueves comunes' },
-  { key: 'findesLibresComunes', label: 'Findes libres', sense: 'benefit', title: 'Findes comunes libres: sin guardia viernes a la noche, sábado ni domingo' },
+  { key: 'findesLibresComunes', label: 'Findes libres', sense: 'benefit', title: 'Findes libres: sin guardia viernes a la noche, sábado ni domingo (aunque trabaje el feriado de un finde largo). Navidad y Año Nuevo no cuentan' },
   { key: 'findesLibresLargos', label: 'Findes largos libres', sense: 'benefit', title: 'Findes largos libres: sin guardia desde la noche anterior hasta el último día no laborable (p. ej. vie a la noche, sáb, dom y lun feriado)' },
   { key: 'findesLibresB', label: 'Libres 100%', sense: 'benefit', title: 'Findes libres (comunes o largos) que además no arrancan con posguardia' },
   { key: 'distanciaMinima', label: 'Dist. mín', sense: 'benefit', title: 'Menor cantidad de días entre dos guardias' },

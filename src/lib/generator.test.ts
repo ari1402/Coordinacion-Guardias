@@ -317,8 +317,8 @@ describe('métricas de findes', () => {
     const c = computeEquityCounters('x', ['2026-11-12', '2026-11-14', '2026-11-23'].map(shift), nov);
     expect(c.sabados).toBe(1);
     expect(c.sabadosSinCompensar).toBe(0);
-    expect(c.findesLibresLargos).toBe(1); // 6–10 libre; 20–23 no (guardia el lunes 23)
-    expect(c.findesLibresComunes).toBe(1); // 27–29 libre; 13–15 no
+    expect(c.findesLibresLargos).toBe(1); // 6–10 libre entero
+    expect(c.findesLibresComunes).toBe(2); // 27–29 libre; 20–22 libre aunque trabaje el lunes 23 feriado; 13–15 no
     expect(c.guardiasFindeLargo).toBe(1);
     const sinJueves = computeEquityCounters('x', ['2026-11-14', '2026-11-28'].map(shift), nov);
     expect(sinJueves.sabadosSinCompensar).toBe(2);
@@ -456,5 +456,25 @@ describe('sugerencias para sacar a alguien de un día', () => {
     // Un intercambio mueve a ana a otro día (sigue con la misma cantidad de guardias).
     const swap = list.find((s) => s.kind === 'intercambio');
     if (swap) expect(swap.slots.filter((s) => s.residentId === 'ana').length).toBe(opt.slots.filter((s) => s.residentId === 'ana').length);
+  });
+});
+
+describe('findes libres: regla nueva', () => {
+  const dic = resolveMonth('2026-12', [
+    { id: '2026-12-07', date: '2026-12-07', isHoliday: true },
+    { id: '2026-12-08', date: '2026-12-08', isHoliday: true },
+    { id: '2026-12-24', date: '2026-12-24', isHoliday: true },
+    { id: '2026-12-25', date: '2026-12-25', isHoliday: true },
+    { id: '2026-12-31', date: '2026-12-31', isHoliday: true },
+  ], [{ id: '2026-12', weekdayRequirements: { mon: 1, tue: 1, wed: 1, thu: 1, fri: 1, sat: 1, sun: 1 } }]);
+  const slots = ['2026-12-07', '2026-12-15', '2026-12-20', '2026-12-24', '2026-12-26'].map((date) => ({ date, slotIndex: 0, residentId: 'x' }));
+  it('vie-sáb-dom libres cuenta aunque trabaje el feriado del lunes; Navidad no cuenta', () => {
+    const b = buildBreakdown(dic, slots, ['x'], {})['x'];
+    expect(b.findesDelMes).toBe(3); // 5–8, 12–13, 19–20 (Navidad afuera)
+    expect(b.findesLibres).toBe(2); // 5–8 (como finde común) y 12–13
+    expect(b.findesLargosLibres).toBe(0);
+    const c = computeEquityCounters('x', slots.map((s) => ({ id: s.date, date: s.date, slotIndex: 0, assignedResidentId: 'x', actualResidentId: 'x', status: 'programada' as const, createdAt: '' })), dic);
+    expect(c.findesLibresA).toBe(2);
+    expect(c.findesLibresComunes).toBe(2);
   });
 });

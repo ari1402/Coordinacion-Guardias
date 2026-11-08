@@ -235,6 +235,24 @@ export function weekendBlock(dateISO: string, isHoliday: (d: string) => boolean)
   return { eve: addDaysISO(start, -1), days, long: days.length >= 3 };
 }
 
+/** Findes de Navidad y Año Nuevo: son especiales y no cuentan como findes libres. */
+export function isSpecialHolidayBlock(block: { eve: string; days: string[] }): boolean {
+  return [block.eve, ...block.days].some((d) => ['12-24', '12-25', '12-31', '01-01'].includes(d.slice(5)));
+}
+
+/**
+ * ¿El finde quedó libre? Cuenta como libre si no hay guardia viernes (a la
+ * noche), sábado ni domingo, aunque trabaje el lunes o martes feriado de un
+ * finde largo. `full`: libre entero, desde la noche anterior hasta el último
+ * día no hábil (finde largo libre de verdad).
+ */
+export function weekendFreeness(block: { eve: string; days: string[] }, busy: (d: string) => boolean): { free: boolean; full: boolean } {
+  const full = [block.eve, ...block.days].every((d) => !busy(d));
+  const sat = block.days.find((d) => isoWeekday(d) === 5);
+  const normal = sat ? [addDaysISO(sat, -1), sat, addDaysISO(sat, 1)] : [block.eve, ...block.days];
+  return { free: full || normal.every((d) => !busy(d)), full };
+}
+
 /** ¿El día es parte de un finde largo (incluida la noche anterior)? */
 export function isLongWeekendDay(dateISO: string, isHoliday: (d: string) => boolean): boolean {
   if (!isBusinessDay(dateISO, isHoliday)) return weekendBlock(dateISO, isHoliday).long;

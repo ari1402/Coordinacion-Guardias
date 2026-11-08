@@ -25,7 +25,7 @@ import { logActivity } from '../lib/activity';
 import { DEFAULT_DISABLED_NOTE, disableSlot, enableSlot } from '../lib/disableSlot';
 import { buildSlots } from '../lib/generator';
 import ExportMonthModal from '../components/ExportMonthModal';
-import { PrevDayCell, PrevMonthLabel, prevTailDates } from '../components/PrevDays';
+import { NextDaysCells, NextMonthLabel, PrevDayCell, PrevMonthLabel, prevTailDates } from '../components/PrevDays';
 import { PrivateNotesCard } from '../components/PrivateNotes';
 import { LEGEND, TAG_EMOJI, TAG_LABEL, dayBgClass } from '../lib/labels';
 import type { CamadaEvent, GuardiaRequest, Resident, ResolvedDay, Shift, ShiftStatus } from '../types';
@@ -146,6 +146,17 @@ export default function Calendario() {
                 </button>
               );
             })}
+            <NextMonthLabel monthKey={monthKey} />
+            <NextDaysCells
+              monthKey={monthKey}
+              assignments={shifts
+                .filter((s) => s.status !== 'cancelada')
+                .sort((a, b) => a.slotIndex - b.slotIndex)
+                .map((s) => ({ date: s.date, residentId: s.actualResidentId }))}
+              name={(id) => byId.get(id)?.shortName ?? '?'}
+              color={color}
+              className="min-h-[52px] sm:min-h-[64px]"
+            />
           </div>
           <div className="flex flex-wrap gap-1.5 mt-3 text-xs text-text-dim">
             {LEGEND.map((l) => (
