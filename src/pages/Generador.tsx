@@ -143,7 +143,11 @@ export default function Generador() {
     () => applyRaffleWinners(mergeTemplate(template, edits[monthKey] ?? baseDraft), raffles),
     [template, edits, monthKey, baseDraft, raffles],
   );
-  const setDraft = (d: DraftSlot[]) => setEdits((e) => ({ ...e, [monthKey]: d }));
+  // Cualquier cambio en el editor vuelve el detalle por persona al editor (si no, seguía mostrando una opción).
+  const setDraft = (d: DraftSlot[]) => {
+    setEdits((e) => ({ ...e, [monthKey]: d }));
+    setDetailView('editor');
+  };
   const clearEdits = () =>
     setEdits((e) => {
       const copy = { ...e };
