@@ -98,9 +98,11 @@ export default function PersonBreakdownGrid({
             </div>
 
             <dl className="grid grid-cols-2 gap-x-3 gap-y-0.5 text-xs">
-              <dt className="text-text-dim">Findes libres acumulados</dt>
-              <dd className="text-right tabular-nums" title={`${b.findesLibres} este mes`}>
-                {b.cumFindesLibres}{' '}
+              <dt className="text-text-dim" title="Libre = sin guardia desde el viernes (o la noche antes del feriado) hasta el último día no hábil">
+                Findes libres
+              </dt>
+              <dd className="text-right tabular-nums">
+                {b.findesLibres} de {b.findesDelMes} <span className="text-text-dim">(acum. {b.cumFindesLibres})</span>{' '}
                 <DeltaBadge delta={b.cumFindesLibres - meanLibres} />
               </dd>
               {b.findesLargosDelMes > 0 && (
