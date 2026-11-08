@@ -436,7 +436,7 @@ export default function Generador() {
 
           <div id="detalle-personas" />
           <Card
-            title="Detalle por persona"
+            title={`Detalle por persona — ${monthOptions?.find((o) => o.profile === detailView)?.label ?? 'Editor'}`}
             subtitle="Fechas con su día, días entre guardias (↩ = desde la última del mes anterior), reparto por día de semana y findes libres."
             action={
               <div className="flex items-center gap-2 flex-wrap justify-end">
@@ -456,6 +456,32 @@ export default function Generador() {
               </div>
             }
           >
+            {(() => {
+              const viewed = monthOptions?.find((o) => o.profile === detailView);
+              return viewed ? (
+                <div className="mb-3 rounded-lg bg-warn-soft px-3 py-2 text-sm flex items-center justify-between gap-2 flex-wrap">
+                  <span>
+                    👁️ Estás viendo la opción <b>{viewed.label}</b>, <b>no</b> lo que está en el editor.
+                  </span>
+                  <span className="flex gap-2">
+                    <button onClick={() => setDetailView('editor')} className={btnSecondary}>
+                      Ver el editor
+                    </button>
+                    <button
+                      onClick={() => {
+                        setDraft(viewed.slots);
+                        setDetailView('editor');
+                      }}
+                      className={btnPrimary}
+                    >
+                      Usar esta opción
+                    </button>
+                  </span>
+                </div>
+              ) : (
+                <p className="mb-3 text-xs text-text-dim">Mostrando lo que está en el editor.</p>
+              );
+            })()}
             <PersonBreakdownGrid
               data={breakdown}
               residents={active}
