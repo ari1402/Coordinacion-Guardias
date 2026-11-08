@@ -244,6 +244,11 @@ function GuiaAdmin() {
             <ul>
               <li>Cambiar una guardia la fija 🔒 para que regenerar no la toque.</li>
               <li>
+                <b>🔄 Buscar reemplazo</b> (en el 📅 calendario, tocando un día): propone las mejores opciones para sacar a alguien de ese
+                día. Si elegís <b>“Con”</b> una persona, muestra cómo ponerla a ella: reemplazo, intercambio o un cambio de a tres donde
+                nadie suma ni pierde guardias, con los problemas nuevos que trae cada opción.
+              </li>
+              <li>
                 <b>✍️ Reglas escritas:</b> una por línea (“Pérez jueves 3”, “Gómez no del 20 al 27”, “Ruiz no jueves”, “solo Díaz y Sosa el 25”).
                 El generador las cumple; abajo se ve cómo se entendió cada una y si el editor la cumple. Las ven las dos admins.
               </li>

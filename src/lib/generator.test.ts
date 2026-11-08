@@ -456,6 +456,19 @@ describe('sugerencias para sacar a alguien de un día', () => {
     // Un intercambio mueve a ana a otro día (sigue con la misma cantidad de guardias).
     const swap = list.find((s) => s.kind === 'intercambio');
     if (swap) expect(swap.slots.filter((s) => s.residentId === 'ana').length).toBe(opt.slots.filter((s) => s.residentId === 'ana').length);
+
+    // Con una persona elegida: todas las opciones la ponen a ella en ese lugar,
+    // y aparecen cadenas de a tres donde nadie cambia su cantidad de guardias.
+    const t0 = performance.now();
+    const withBruno = suggestReplacements(input, opt.slots, key, 6, 'bruno');
+    expect(performance.now() - t0).toBeLessThan(3000);
+    expect(withBruno.length).toBeGreaterThan(0);
+    for (const sug of withBruno) expect(sug.slots.find((s) => slotKey(s.date, s.slotIndex) === key)!.residentId).toBe('bruno');
+    const all = suggestReplacements(input, opt.slots, key, 500, 'bruno');
+    const chain = all.find((s) => s.kind === 'cadena')!;
+    expect(chain.changes).toHaveLength(3);
+    const count = (slots: typeof opt.slots, id: string) => slots.filter((s) => s.residentId === id).length;
+    for (const id of residents.map((r) => r.id)) expect(count(chain.slots, id)).toBe(count(opt.slots, id));
   });
 });
 

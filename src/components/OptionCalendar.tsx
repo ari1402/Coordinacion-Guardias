@@ -56,15 +56,17 @@ export default function OptionCalendarModal({
   issueBySlot?: Map<string, 'hard' | 'soft'>;
   dayMarks?: Map<string, DayMarks>;
   /** Mejores formas de sacar a quien está en ese lugar (reemplazo o intercambio). */
-  onSuggest?: (date: string, slotIndex: number) => Suggestion[];
+  onSuggest?: (date: string, slotIndex: number, want?: string | null) => Suggestion[];
   onApply?: (slots: DraftSlot[]) => void;
 }) {
   const [person, setPerson] = useState<string | null>(initialPerson ?? null);
   const [selected, setSelected] = useState<string | null>(null);
-  const [suggestFor, setSuggestFor] = useState<{ key: string; list: Suggestion[] } | null>(null);
+  const [suggestFor, setSuggestFor] = useState<{ key: string; list: Suggestion[]; want: string } | null>(null);
+  const [want, setWant] = useState('');
   const editorRef = useRef<HTMLDivElement>(null);
   useEffect(() => {
     if (selected) editorRef.current?.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+    setSuggestFor(null);
   }, [selected]);
 
   const byDate = new Map<string, { slotIndex: number; residentId: string | null }[]>();
@@ -196,16 +198,43 @@ export default function OptionCalendarModal({
                   );
                 })}
               </select>
-              {onSuggest && s.residentId && (
-                <button
-                  type="button"
-                  onClick={() => setSuggestFor(suggestFor?.key === key ? null : { key, list: onSuggest(selDay.date, s.slotIndex) })}
-                  className="shrink-0 rounded-lg border border-border bg-surface px-2.5 py-2 text-xs hover:bg-surface-2"
-                >
-                  🔄 Buscar reemplazo
-                </button>
-              )}
               </div>
+              {onSuggest && s.residentId && (
+                <div className="flex gap-2 items-center">
+                  <label className="text-xs text-text-dim shrink-0">Con</label>
+                  <select
+                    value={want}
+                    onChange={(e) => {
+                      setWant(e.target.value);
+                      setSuggestFor(null);
+                    }}
+                    className={clsx(inputCls, 'text-xs py-1.5')}
+                    aria-label="Con quién"
+                  >
+                    <option value="">cualquiera</option>
+                    {residents
+                      .filter((r) => r.id !== s.residentId)
+                      .map((r) => (
+                        <option key={r.id} value={r.id}>
+                          {r.shortName}
+                        </option>
+                      ))}
+                  </select>
+                  <button
+                    type="button"
+                    onClick={() =>
+                      setSuggestFor(
+                        suggestFor?.key === key && suggestFor.want === want
+                          ? null
+                          : { key, want, list: onSuggest(selDay.date, s.slotIndex, want || null) },
+                      )
+                    }
+                    className="shrink-0 rounded-lg border border-border bg-surface px-2.5 py-2 text-xs hover:bg-surface-2"
+                  >
+                    🔄 Buscar reemplazo
+                  </button>
+                </div>
+              )}
               {suggestFor?.key === key && (
                 <SuggestionList
                   list={suggestFor.list}
@@ -227,7 +256,7 @@ export default function OptionCalendarModal({
 }
 
 function SuggestionList({ list, name, onApply }: { list: Suggestion[]; name: (id: string) => string; onApply: (slots: DraftSlot[]) => void }) {
-  if (list.length === 0) return <p className="text-xs text-text-dim">No encontré alternativas.</p>;
+  if (list.length === 0) return <p className="text-xs text-text-dim">No encontré alternativas (no se tocan las guardias fijadas 🔒 ni los sorteos).</p>;
   const n = (id: string | null) => (id ? name(id) : 'nadie');
   return (
     <ol className="flex flex-col gap-1.5">
@@ -236,7 +265,16 @@ function SuggestionList({ list, name, onApply }: { list: Suggestion[]; name: (id
         return (
           <li key={i} className="rounded-lg bg-surface border border-border p-2 text-xs flex flex-col gap-1">
             <span className="text-sm">
-              {sug.kind === 'reemplazo' ? (
+              {sug.kind === 'cadena' ? (
+                <span className="flex flex-col gap-0.5">
+                  <span className="text-text-dim text-xs">Cambio de a tres (nadie suma ni pierde guardias):</span>
+                  {sug.changes.map((c) => (
+                    <span key={`${c.date}_${c.slotIndex}`}>
+                      • <b>{n(c.to)}</b> toma el <span className="capitalize">{shortDateLabel(c.date)}</span> (era de {n(c.from)})
+                    </span>
+                  ))}
+                </span>
+              ) : sug.kind === 'reemplazo' ? (
                 <>
                   Poner a <b>{n(a.to)}</b> en lugar de {n(a.from)}
                 </>

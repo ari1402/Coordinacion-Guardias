@@ -578,9 +578,9 @@ export default function Generador() {
                   ? 'Al cambiar algo, esta opción pasa al editor con tu cambio.'
                   : undefined
               }
-              onSuggest={(date, slotIndex) => {
+              onSuggest={(date, slotIndex, want) => {
                 const viewed = monthOptions?.find((o) => o.profile === detailView);
-                return suggestReplacements(input, viewed ? viewed.slots : draft, slotKey(date, slotIndex));
+                return suggestReplacements(input, viewed ? viewed.slots : draft, slotKey(date, slotIndex), want ? 6 : 5, want);
               }}
               onApply={(slots) => {
                 setDraft(slots);

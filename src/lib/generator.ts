@@ -997,7 +997,8 @@ export function evaluateDraft(input: ScheduleInput, draft: DraftSlot[]): Evaluat
 // ---------------------------------------------------------------------------
 
 export interface Suggestion {
-  kind: 'reemplazo' | 'intercambio';
+  /** cadena: entra una persona elegida y, para compensar, se pasan guardias entre tres. */
+  kind: 'reemplazo' | 'intercambio' | 'cadena';
   /** Lugares que cambian: quién estaba y quién queda. */
   changes: { date: string; slotIndex: number; from: string | null; to: string | null }[];
   /** El borrador completo con el cambio aplicado (los lugares cambiados quedan fijados). */
@@ -1010,7 +1011,14 @@ export interface Suggestion {
   newIssues: string[];
 }
 
-export function suggestReplacements(input: ScheduleInput, draft: DraftSlot[], targetKey: string, limit = 5): Suggestion[] {
+export function suggestReplacements(
+  input: ScheduleInput,
+  draft: DraftSlot[],
+  targetKey: string,
+  limit = 5,
+  /** Si se elige quién tiene que entrar en ese lugar: solo opciones con esa persona. */
+  want?: string | null,
+): Suggestion[] {
   const p = compile({ ...input, fixed: draft.filter((d) => d.raffleId && !d.residentId) });
   const W = PROFILES.equidad.weights;
   const idx = new Map(p.resIds.map((id, i) => [id, i]));
@@ -1029,24 +1037,50 @@ export function suggestReplacements(input: ScheduleInput, draft: DraftSlot[], ta
   const candidates: { kind: Suggestion['kind']; a: Int16Array; touched: number[]; cost: number }[] = [];
   const consider = (kind: Suggestion['kind'], a: Int16Array, touched: number[]) => candidates.push({ kind, a, touched, cost: run(p, a, W, null) });
 
+  // Lugares que se pueden mover (sin tocar lo fijado a mano ni los sorteos).
+  const movable = (u: number) => {
+    const d = byKey.get(p.slots[u].key);
+    return !d?.locked && !d?.raffleId && p.slots[u].fixed < 0;
+  };
+  const wanted = want ? (idx.get(want) ?? -1) : -1;
+  if (want && (wanted < 0 || wanted === cur)) return [];
+
   // Reemplazo: otra persona en ese lugar.
   for (let r = 0; r < p.resIds.length; r++) {
-    if (r === cur) continue;
+    if (r === cur || (wanted >= 0 && r !== wanted)) continue;
     const a = base.slice();
     a[t] = r;
     consider('reemplazo', a, [t]);
   }
-  // Intercambio: con quien tiene guardia otro día (sin tocar lo fijado a mano ni los sorteos).
+  // Intercambio: con quien tiene guardia otro día.
   if (cur >= 0) {
     for (let u = 0; u < p.slots.length; u++) {
       const r2 = base[u];
-      if (u === t || r2 < 0 || r2 === cur || p.slots[u].date === p.slots[t].date) continue;
-      const d = byKey.get(p.slots[u].key);
-      if (d?.locked || d?.raffleId || p.slots[u].fixed >= 0) continue;
+      if (u === t || r2 < 0 || r2 === cur || p.slots[u].date === p.slots[t].date || !movable(u)) continue;
+      if (wanted >= 0 && r2 !== wanted) continue;
       const a = base.slice();
       a[t] = r2;
       a[u] = cur;
       consider('intercambio', a, [t, u]);
+    }
+  }
+  // Cadena (solo con persona elegida): ella entra acá, quien estaba toma la
+  // guardia de una tercera, y la tercera toma una de las de ella. Nadie suma
+  // ni pierde guardias.
+  if (wanted >= 0 && cur >= 0) {
+    for (let u = 0; u < p.slots.length; u++) {
+      if (base[u] !== wanted || u === t || !movable(u)) continue;
+      for (let v = 0; v < p.slots.length; v++) {
+        const z = base[v];
+        if (v === t || v === u || z < 0 || z === wanted || z === cur || !movable(v)) continue;
+        const dates = new Set([p.slots[t].date, p.slots[u].date, p.slots[v].date]);
+        if (dates.size < 3) continue;
+        const a = base.slice();
+        a[t] = wanted;
+        a[v] = cur;
+        a[u] = z;
+        consider('cadena', a, [t, v, u]);
+      }
     }
   }
 
