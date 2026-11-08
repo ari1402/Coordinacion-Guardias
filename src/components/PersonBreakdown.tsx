@@ -19,12 +19,15 @@ export default function PersonBreakdownGrid({
   color,
   minGapHard,
   minGapIdeal,
+  onShowCalendar,
 }: {
   data: Record<string, PersonBreakdown>;
   residents: Resident[];
   color: (id: string) => string;
   minGapHard: number;
   minGapIdeal: number;
+  /** Si viene, cada tarjeta tiene un botón para ver el calendario del mes con esa persona resaltada. */
+  onShowCalendar?: (residentId: string) => void;
 }) {
   const shown = residents.map((r) => data[r.id]).filter(Boolean);
   const meanLibres = shown.reduce((a, b) => a + b.cumFindesLibres, 0) / (shown.length || 1);
@@ -40,8 +43,20 @@ export default function PersonBreakdownGrid({
                 <Dot color={color(r.id)} />
                 {r.shortName}
               </span>
-              <span className="text-xs text-text-dim">
-                <b className="text-text">{b.count}</b> este mes · {b.cumTotal} acumuladas
+              <span className="flex items-center gap-2 text-xs text-text-dim">
+                <span>
+                  <b className="text-text">{b.count}</b> este mes · {b.cumTotal} acumuladas
+                </span>
+                {onShowCalendar && (
+                  <button
+                    onClick={() => onShowCalendar(r.id)}
+                    className="rounded-md border border-border px-1.5 py-0.5 hover:bg-surface-2"
+                    title="Ver sus guardias en el calendario del mes"
+                    aria-label={`Ver las guardias de ${r.shortName} en el calendario`}
+                  >
+                    📅
+                  </button>
+                )}
               </span>
             </div>
 

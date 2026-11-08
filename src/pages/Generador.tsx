@@ -4,6 +4,7 @@ import { Link, useSearchParams } from 'react-router-dom';
 import Badge from '../components/Badge';
 import ImportTextModal from '../components/ImportTextModal';
 import PersonBreakdownGrid from '../components/PersonBreakdown';
+import OptionCalendarModal from '../components/OptionCalendar';
 import { Card, Dot, Modal, MonthNav, PageHeader, Segmented, btnPrimary, btnSecondary, inputCls } from '../components/ui';
 import { useAuthContext } from '../context/AuthContext';
 import {
@@ -80,6 +81,7 @@ export default function Generador() {
   const [importOpen, setImportOpen] = useState(false);
   const [importWarnings, setImportWarnings] = useState<string[]>([]);
   const [detailView, setDetailView] = useState<string>('editor');
+  const [calendarFor, setCalendarFor] = useState<{ person: string | null } | null>(null);
 
   const days = useMemo(() => resolveMonth(monthKey, storedDays, monthConfigs), [monthKey, storedDays, monthConfigs]);
   const cfg = useMemo(() => effectiveMonthConfig(monthKey, monthConfigs), [monthKey, monthConfigs]);
@@ -437,16 +439,21 @@ export default function Generador() {
             title="Detalle por persona"
             subtitle="Fechas con su día, días entre guardias (↩ = desde la última del mes anterior), reparto por día de semana y findes libres."
             action={
-              monthOptions ? (
-                <Segmented
-                  value={monthOptions.some((o) => o.profile === detailView) ? detailView : 'editor'}
-                  onChange={setDetailView}
-                  options={[
-                    { value: 'editor', label: 'Editor' },
-                    ...monthOptions.map((o) => ({ value: o.profile, label: o.label.replace('Máximo ', '').replace('Máxima ', '') })),
-                  ]}
-                />
-              ) : undefined
+              <div className="flex items-center gap-2 flex-wrap justify-end">
+                {monthOptions && (
+                  <Segmented
+                    value={monthOptions.some((o) => o.profile === detailView) ? detailView : 'editor'}
+                    onChange={setDetailView}
+                    options={[
+                      { value: 'editor', label: 'Editor' },
+                      ...monthOptions.map((o) => ({ value: o.profile, label: o.label.replace('Máximo ', '').replace('Máxima ', '') })),
+                    ]}
+                  />
+                )}
+                <button onClick={() => setCalendarFor({ person: null })} className={btnSecondary}>
+                  📅 Calendario
+                </button>
+              </div>
             }
           >
             <PersonBreakdownGrid
@@ -455,8 +462,23 @@ export default function Generador() {
               color={color}
               minGapHard={cfg.rules.minGapHard}
               minGapIdeal={cfg.rules.minGapIdeal}
+              onShowCalendar={(person) => setCalendarFor({ person })}
             />
           </Card>
+          {calendarFor && (
+            <OptionCalendarModal
+              key={`${detailView}-${calendarFor.person ?? 'todas'}`}
+              open
+              onClose={() => setCalendarFor(null)}
+              title={monthOptions?.find((o) => o.profile === detailView)?.label ?? 'Editor'}
+              monthKey={monthKey}
+              days={days}
+              slots={detailSlots}
+              residents={active}
+              color={color}
+              initialPerson={calendarFor.person}
+            />
+          )}
 
           <div className="grid gap-4 lg:grid-cols-5">
             <Card title="Cómo queda el reparto" subtitle="Mes + acumulado histórico (lo que ya pasó cuenta para compensar)" className="lg:col-span-3">
