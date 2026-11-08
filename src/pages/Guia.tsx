@@ -243,6 +243,10 @@ function GuiaAdmin() {
             detalle por persona”, usá la que más te guste y retocá a mano:
             <ul>
               <li>Cambiar una guardia la fija 🔒 para que regenerar no la toque.</li>
+              <li>
+                <b>✍️ Reglas escritas:</b> una por línea (“Pérez jueves 3”, “Gómez no del 20 al 27”, “Ruiz no jueves”, “solo Díaz y Sosa el 25”).
+                El generador las cumple; abajo se ve cómo se entendió cada una y si el editor la cumple. Las ven las dos admins.
+              </li>
               <li>🎲 marca una guardia para sortear entre quienes elijas.</li>
               <li>🚫 deshabilita un lugar (lo toma un residente mayor u otra persona).</li>
               <li>“Problemas a revisar” lista todo lo que no cierra (distancias, pedidos, finde XL fuera de turno…).</li>

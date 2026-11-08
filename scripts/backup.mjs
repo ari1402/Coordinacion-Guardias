@@ -17,7 +17,7 @@ import { loadServiceAccount } from './credentials.mjs';
 const PBKDF2_ITERATIONS = 310_000;
 const COLLECTIONS = [
   'residents', 'shifts', 'requests', 'swaps', 'offers', 'raffles', 'acks', 'publications', 'feedback',
-  'rotations', 'events', 'calendarDays', 'monthConfigs', 'scheduleDrafts', 'privateNotes', 'tasks',
+  'rotations', 'events', 'calendarDays', 'monthConfigs', 'scheduleDrafts', 'genRules', 'privateNotes', 'tasks',
   'notes', 'links', 'activity', 'meta', 'trades', 'hibaRequests', 'hibaAcks',
 ];
 

@@ -5,6 +5,7 @@ import type {
   CalendarDay,
   CamadaEvent,
   CamadaTask,
+  GenRules,
   GuardiaOffer,
   HibaAck,
   HibaRequest,
@@ -112,6 +113,12 @@ export function usePushTokens(enabled: boolean) {
 export function useDrafts(enabled: boolean) {
   const { data, loading, error } = useCollection<ScheduleDraft>(enabled ? 'scheduleDrafts' : '', []);
   return { drafts: enabled ? data : [], loading: enabled && loading, error };
+}
+
+/** Reglas escritas para el generador (solo admins). */
+export function useGenRules(enabled: boolean) {
+  const { data, loading } = useCollection<GenRules>(enabled ? 'genRules' : '', []);
+  return { genRules: enabled ? data : [], loading: enabled && loading };
 }
 
 export function useRotations() {

@@ -25,6 +25,7 @@ const COLLECTIONS: [string, string][] = [
   ['calendarDays', 'Días especiales'],
   ['monthConfigs', 'Config de meses'],
   ['scheduleDrafts', 'Borradores'],
+  ['genRules', 'Reglas escritas'],
   ['tasks', 'Tareas'],
   ['notes', 'Notas'],
   ['links', 'Links'],

@@ -370,6 +370,14 @@ export interface PrivateNote {
   updatedAt: string;
 }
 
+/** Reglas escritas del mes para el generador (doc id = mes). Solo admins. */
+export interface GenRules {
+  id: string;
+  text: string;
+  updatedBy: string;
+  updatedAt: string;
+}
+
 /** Carril (rotación) de cada R1 por mes. Doc id = residentId. */
 export interface Rotation {
   id: string;

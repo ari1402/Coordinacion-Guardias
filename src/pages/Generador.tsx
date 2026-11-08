@@ -5,6 +5,7 @@ import Badge from '../components/Badge';
 import ImportTextModal from '../components/ImportTextModal';
 import PersonBreakdownGrid from '../components/PersonBreakdown';
 import OptionCalendarModal from '../components/OptionCalendar';
+import WrittenRulesCard from '../components/WrittenRules';
 import { PrevDaysStrip } from '../components/PrevDays';
 import { Card, Dot, Modal, MonthNav, PageHeader, Segmented, btnPrimary, btnSecondary, inputCls } from '../components/ui';
 import { useAuthContext } from '../context/AuthContext';
@@ -12,6 +13,7 @@ import {
   useAllShifts,
   useCalendarData,
   useDrafts,
+  useGenRules,
   useRaffles,
   useRequests,
   useResidents,
@@ -45,6 +47,7 @@ import {
 import { buildBreakdown } from '../lib/breakdown';
 import { DEFAULT_DISABLED_NOTE, disableSlot, enableSlot } from '../lib/disableSlot';
 import { awayMonths } from '../lib/rotations';
+import { applyWrittenRules, parseWrittenRules } from '../lib/writtenRules';
 import { TAG_EMOJI, dayBgClass } from '../lib/labels';
 import { createRaffle, drawRaffle, setRaffleIgnored, winners } from '../lib/raffles';
 import {
@@ -73,6 +76,7 @@ export default function Generador() {
   const { requests } = useRequests();
   const { raffles } = useRaffles();
   const { drafts, loading: ld } = useDrafts(true);
+  const { genRules } = useGenRules(true);
   const { rotations } = useRotations();
 
   const [edits, setEdits] = useState<Record<string, DraftSlot[]>>({});
@@ -119,17 +123,27 @@ export default function Generador() {
     return active.filter((r) => away[r.id]?.has(monthKey));
   }, [rotations, active, monthKey]);
 
+  // Reglas escritas del mes: las fijadas, los "no" y los "solo" van al generador.
+  const writtenText = genRules.find((g) => g.id === monthKey)?.text ?? '';
+  const written = useMemo(
+    () => applyWrittenRules(days, parseWrittenRules(writtenText, monthKey, active, days)),
+    [days, writtenText, monthKey, active],
+  );
+
   const input: ScheduleInput = useMemo(
     () => ({
-      days,
+      days: written.days,
       residents: active,
       requests: monthRequests,
       rules: cfg.rules,
       prior,
       holidayDates: storedDays.filter((d) => d.isHoliday).map((d) => d.date),
-      unavailable: onVacation.map((r) => ({ residentId: r.id, dates: days.map((d) => d.date), reason: 'Vacaciones' })),
+      unavailable: [
+        ...onVacation.map((r) => ({ residentId: r.id, dates: days.map((d) => d.date), reason: 'Vacaciones' })),
+        ...written.unavailable,
+      ],
     }),
-    [days, active, monthRequests, cfg.rules, prior, storedDays, onVacation],
+    [days, written, active, monthRequests, cfg.rules, prior, storedDays, onVacation],
   );
 
   const source: 'borrador' | 'publicado' | 'vacío' = savedDraft ? 'borrador' : monthShifts.length ? 'publicado' : 'vacío';
@@ -350,6 +364,18 @@ export default function Generador() {
             </div>
             {busy && <p className="text-xs text-text-dim mt-2">{busy}</p>}
           </Card>
+          {me && (
+            <WrittenRulesCard
+              key={monthKey}
+              monthKey={monthKey}
+              stored={writtenText}
+              userId={me.id}
+              residents={active}
+              days={days}
+              draft={draft}
+              hasDraft={!isEmpty}
+            />
+          )}
           <div className="grid gap-4 lg:grid-cols-2">
             <RulesCard monthKey={monthKey} cfg={cfg} days={days} />
             <Card title="Pedidos del mes" subtitle={`${monthRequests.length} pedido(s) — los rechazados no se tienen en cuenta`}>
@@ -732,8 +758,7 @@ function RulesCard({
           <div className="bg-accent-soft rounded-lg p-2 text-xs flex flex-col gap-1">
             <p className="whitespace-pre-wrap [overflow-wrap:anywhere]">📝 {privateNote}</p>
             <p className="text-text-dim">
-              Es tu nota (solo la ves vos): el generador no la lee. Para que alguien quede sí o sí en un día, elegila en ese día del editor
-              (queda fijada 🔒) y después generá.
+              Es tu nota (solo la ves vos): el generador no la lee. Para que la cumpla, escribila en ✍️ Reglas escritas.
             </p>
           </div>
         )}
