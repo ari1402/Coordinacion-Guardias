@@ -728,7 +728,15 @@ function RulesCard({
             {special.map((d) => `${Number(d.date.slice(8))}${d.notes ? `: ${d.notes}` : ' sin R1'}`).join(' · ')}
           </p>
         )}
-        {privateNote && <p className="whitespace-pre-wrap [overflow-wrap:anywhere] bg-accent-soft rounded-lg p-2 text-xs">🔒 {privateNote}</p>}
+        {privateNote && (
+          <div className="bg-accent-soft rounded-lg p-2 text-xs flex flex-col gap-1">
+            <p className="whitespace-pre-wrap [overflow-wrap:anywhere]">📝 {privateNote}</p>
+            <p className="text-text-dim">
+              Es tu nota (solo la ves vos): el generador no la lee. Para que alguien quede sí o sí en un día, elegila en ese día del editor
+              (queda fijada 🔒) y después generá.
+            </p>
+          </div>
+        )}
       </div>
     </Card>
   );
