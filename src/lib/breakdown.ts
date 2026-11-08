@@ -32,6 +32,8 @@ export interface PersonBreakdown {
   avgGap: number | null;
   cumTotal: number;
   cumSabPref: number;
+  /** Feriados acumulados (antes del mes + este mes). */
+  cumFeriados: number;
   /** Findes libres acumulados (antes del mes + este mes). */
   cumFindesLibres: number;
 }
@@ -95,6 +97,7 @@ export function buildBreakdown(
       const boundaryInPrior = !!boundary && [boundary.eve, ...boundary.days].filter((d) => d < first!).every((d) => !out.has(d));
       const largosLibres = libres.filter((b) => b.long && !dates.has(addDaysISO(b.eve, -1)));
       const sabPref = list.filter(isSabadoOrPreferiado).length;
+      const feriados = list.filter((d) => d.isHoliday).length;
       return [
         id,
         {
@@ -103,7 +106,7 @@ export function buildBreakdown(
           count: shifts.length,
           byWeekday: [0, 1, 2, 3, 4, 5, 6].map((w) => list.filter((d) => d.weekday === w).length),
           sabPref,
-          feriados: list.filter((d) => d.isHoliday).length,
+          feriados,
           xl: list.filter((d) => hasTag(d, 'finde_xl')).length,
           juevesFelices: list.filter((d) => hasTag(d, 'jueves_feliz')).length,
           findeTotal: list.filter((d) => d.weekday >= 4).length,
@@ -116,6 +119,7 @@ export function buildBreakdown(
           avgGap: gaps.length ? gaps.reduce((a, b) => a + b, 0) / gaps.length : null,
           cumTotal: (prior[id]?.total ?? 0) + shifts.length,
           cumSabPref: (prior[id]?.sabPref ?? 0) + sabPref,
+          cumFeriados: (prior[id]?.feriado ?? 0) + feriados,
           cumFindesLibres:
             Math.max(0, (prior[id]?.findesLibres ?? 0) - (boundaryInPrior && prior[id]?.findesLibres ? 1 : 0)) + libres.length,
         },

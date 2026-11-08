@@ -183,6 +183,8 @@ export interface ResidentMonthStats {
   avgGap: number | null;
   cumTotal: number;
   cumSabPref: number;
+  /** Feriados acumulados contando este mes. */
+  cumFeriados: number;
   availableSlots: number;
 }
 
@@ -722,6 +724,7 @@ function evaluateAssignment(p: Problem, assign: Int16Array, W: Weights, requests
       avgGap: g.n ? g.sum / g.n : null,
       cumTotal: p.prior[r].total + m.total,
       cumSabPref: p.prior[r].sabPref + m.sabPref,
+      cumFeriados: p.prior[r].feriado + m.feriado,
       availableSlots: p.availableSlots[r],
     };
   });

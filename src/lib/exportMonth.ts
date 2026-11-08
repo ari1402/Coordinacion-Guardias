@@ -13,6 +13,8 @@ export interface MonthExportInput {
   residents: Resident[];
   rotations?: Rotation[];
   events?: CamadaEvent[];
+  /** Feriados de cualquier mes (para los feriados acumulados de antes del mes). */
+  holidayDates?: string[];
 }
 
 const valid = (s: Shift) => s.status !== 'cancelada';
@@ -25,7 +27,7 @@ function dayType(d: ResolvedDay): string {
 }
 
 /** Hojas del Excel de un mes: calendario, resumen por persona, lista por persona y lista por día. */
-export function monthSheets({ monthKey, days, shifts, residents, rotations = [], events = [] }: MonthExportInput): Sheet[] {
+export function monthSheets({ monthKey, days, shifts, residents, rotations = [], events = [], holidayDates = [] }: MonthExportInput): Sheet[] {
   const label = monthLabel(monthKey);
   const name = (id: string) => residents.find((r) => r.id === id)?.shortName ?? '?';
   const monthShifts = shifts
@@ -66,6 +68,7 @@ export function monthSheets({ monthKey, days, shifts, residents, rotations = [],
   // ---------- Resumen por persona
   const slots = monthShifts.map((s) => ({ date: s.date, slotIndex: s.slotIndex, residentId: s.actualResidentId }));
   const before = shifts.filter((s) => s.date < `${monthKey}-01` && valid(s));
+  const holidaySet = new Set([...holidayDates, ...days.filter((d) => d.isHoliday).map((d) => d.date)]);
   const lastBefore = (id: string) =>
     before
       .filter((s) => s.actualResidentId === id)
@@ -83,7 +86,7 @@ export function monthSheets({ monthKey, days, shifts, residents, rotations = [],
           ...priorFromCounters(undefined),
           total: before.filter((s) => s.actualResidentId === r.id).length,
           sabPref: 0,
-          feriado: 0,
+          feriado: before.filter((s) => s.actualResidentId === r.id && holidaySet.has(s.date)).length,
           viernes: 0,
           domingo: 0,
           findeTotal: 0,
@@ -102,7 +105,7 @@ export function monthSheets({ monthKey, days, shifts, residents, rotations = [],
   const rotation = (id: string) => rotations.find((r) => r.id === id)?.months[monthKey] ?? '';
   const summaryHeader = [
     'Residente', 'Carril', 'Guardias del mes', 'Fechas', 'Lun–Mié', 'Jue', 'Vie', 'Sáb', 'Dom',
-    'Sáb + preferiados', 'Feriados', 'Findes libres en el mes', 'Findes largos libres', 'Findes XL', 'Separación mínima (días)', 'Total acumulado',
+    'Sáb + preferiados', 'Feriados', 'Findes libres en el mes', 'Findes largos libres', 'Findes XL', 'Separación mínima (días)', 'Total acumulado', 'Feriados acumulados',
   ];
   const summary: Cell[][] = [
     [{ v: `Resumen por persona — ${label}`, s: 'title' }],
@@ -126,6 +129,7 @@ export function monthSheets({ monthKey, days, shifts, residents, rotations = [],
         b.xl,
         b.minGap ?? '—',
         b.cumTotal,
+        b.cumFeriados,
       ];
     }),
     [{ v: 'Total', s: 'total' }, { v: '', s: 'total' }, { v: monthShifts.length, s: 'total' }],

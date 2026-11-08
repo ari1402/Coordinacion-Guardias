@@ -104,7 +104,9 @@ export default function PersonBreakdownGrid({
               <dt className="text-text-dim">Vie + sáb + dom</dt>
               <dd className="text-right tabular-nums">{b.findeTotal}</dd>
               <dt className="text-text-dim">Feriados</dt>
-              <dd className="text-right tabular-nums">{b.feriados}</dd>
+              <dd className="text-right tabular-nums">
+                {b.feriados} <span className="text-text-dim">(acum. {b.cumFeriados})</span>
+              </dd>
               <dt className="text-text-dim">Jueves feliz · XL</dt>
               <dd className="text-right tabular-nums">
                 {b.juevesFelices} · {b.xl}

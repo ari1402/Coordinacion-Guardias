@@ -151,7 +151,7 @@ export default function Calendario() {
 
       {exporting && (
         <ExportMonthModal
-          input={{ monthKey, days, shifts, residents, rotations, events }}
+          input={{ monthKey, days, shifts, residents, rotations, events, holidayDates: storedDays.filter((d) => d.isHoliday).map((d) => d.date) }}
           meId={me?.id}
           onClose={() => setExporting(false)}
         />

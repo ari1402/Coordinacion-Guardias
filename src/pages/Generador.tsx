@@ -830,6 +830,7 @@ function StatsTable({
     { label: 'Dist. mín', get: (s) => s.minGap ?? '—' },
     { label: 'Acum.', get: (s) => s.cumTotal, title: 'Total acumulado contando este mes' },
     { label: 'Acum. S+P', get: (s) => s.cumSabPref, title: 'Sábados + preferiados acumulados' },
+    { label: 'Acum. Fer', get: (s) => s.cumFeriados, title: 'Feriados acumulados contando este mes' },
     { label: 'Disp.', get: (s) => s.availableSlots, title: 'Guardias del mes en las que puede estar' },
   ];
   return (
