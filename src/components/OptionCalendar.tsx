@@ -2,7 +2,8 @@ import clsx from 'clsx';
 import { useEffect, useRef, useState } from 'react';
 import { monthLabel, shortDateLabel } from '../lib/dates';
 import { TAG_EMOJI, dayBgClass } from '../lib/labels';
-import type { Resident, ResolvedDay } from '../types';
+import type { Suggestion } from '../lib/generator';
+import type { DraftSlot, Resident, ResolvedDay } from '../types';
 import { PrevDayCell, PrevMonthLabel, prevTailDates, type PrevAssignment } from './PrevDays';
 import { Dot, Modal, inputCls } from './ui';
 
@@ -34,6 +35,8 @@ export default function OptionCalendarModal({
   editNote,
   issueBySlot,
   dayMarks,
+  onSuggest,
+  onApply,
 }: {
   open: boolean;
   onClose: () => void;
@@ -50,9 +53,13 @@ export default function OptionCalendarModal({
   editNote?: string;
   issueBySlot?: Map<string, 'hard' | 'soft'>;
   dayMarks?: Map<string, DayMarks>;
+  /** Mejores formas de sacar a quien está en ese lugar (reemplazo o intercambio). */
+  onSuggest?: (date: string, slotIndex: number) => Suggestion[];
+  onApply?: (slots: DraftSlot[]) => void;
 }) {
   const [person, setPerson] = useState<string | null>(initialPerson ?? null);
   const [selected, setSelected] = useState<string | null>(null);
+  const [suggestFor, setSuggestFor] = useState<{ key: string; list: Suggestion[] } | null>(null);
   const editorRef = useRef<HTMLDivElement>(null);
   useEffect(() => {
     if (selected) editorRef.current?.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
@@ -165,9 +172,11 @@ export default function OptionCalendarModal({
           {(byDate.get(selDay.date) ?? []).length === 0 && <p className="text-sm text-text-dim">Ese día no lleva R1.</p>}
           {(byDate.get(selDay.date) ?? []).map((s) => {
             const marks = dayMarks?.get(selDay.date);
+            const key = `${selDay.date}_${s.slotIndex}`;
             return (
+              <div key={s.slotIndex} className="flex flex-col gap-1.5">
+              <div className="flex gap-2 items-center">
               <select
-                key={s.slotIndex}
                 value={s.residentId ?? ''}
                 onChange={(e) => onChange(selDay.date, s.slotIndex, e.target.value || null)}
                 className={inputCls}
@@ -183,11 +192,78 @@ export default function OptionCalendarModal({
                   );
                 })}
               </select>
+              {onSuggest && s.residentId && (
+                <button
+                  type="button"
+                  onClick={() => setSuggestFor(suggestFor?.key === key ? null : { key, list: onSuggest(selDay.date, s.slotIndex) })}
+                  className="shrink-0 rounded-lg border border-border bg-surface px-2.5 py-2 text-xs hover:bg-surface-2"
+                >
+                  🔄 Buscar reemplazo
+                </button>
+              )}
+              </div>
+              {suggestFor?.key === key && (
+                <SuggestionList
+                  list={suggestFor.list}
+                  name={name}
+                  onApply={(slots) => {
+                    onApply?.(slots);
+                    setSuggestFor(null);
+                  }}
+                />
+              )}
+              </div>
             );
           })}
           <p className="text-xs text-text-dim">⛔ no puede · 🙅 pidió no estar · 🙋 pidió estar. El cambio queda fijado (🔒) en el editor.</p>
         </div>
       )}
     </Modal>
+  );
+}
+
+function SuggestionList({ list, name, onApply }: { list: Suggestion[]; name: (id: string) => string; onApply: (slots: DraftSlot[]) => void }) {
+  if (list.length === 0) return <p className="text-xs text-text-dim">No encontré alternativas.</p>;
+  const n = (id: string | null) => (id ? name(id) : 'nadie');
+  return (
+    <ol className="flex flex-col gap-1.5">
+      {list.map((sug, i) => {
+        const [a, b] = sug.changes;
+        return (
+          <li key={i} className="rounded-lg bg-surface border border-border p-2 text-xs flex flex-col gap-1">
+            <span className="text-sm">
+              {sug.kind === 'reemplazo' ? (
+                <>
+                  Poner a <b>{n(a.to)}</b> en lugar de {n(a.from)}
+                </>
+              ) : (
+                <>
+                  Intercambiar: <b>{n(a.from)}</b> pasa al <span className="capitalize">{shortDateLabel(b.date)}</span> y <b>{n(b.from)}</b> al{' '}
+                  <span className="capitalize">{shortDateLabel(a.date)}</span>
+                </>
+              )}
+            </span>
+            <span className="flex flex-wrap items-center gap-1.5">
+              {sug.newIssues.length === 0 ? (
+                <span className="text-ok">✅ sin problemas nuevos</span>
+              ) : (
+                <span className="text-warn">⚠️ {sug.newIssues.length} problema{sug.newIssues.length === 1 ? '' : 's'} nuevo{sug.newIssues.length === 1 ? '' : 's'}</span>
+              )}
+              {sug.costDelta < 0 && <span className="text-ok">· mejora el reparto</span>}
+              <button type="button" onClick={() => onApply(sug.slots)} className="ml-auto rounded-md bg-accent text-accent-contrast px-2.5 py-1 font-medium">
+                Aplicar
+              </button>
+            </span>
+            {sug.newIssues.length > 0 && (
+              <ul className="text-text-dim list-disc pl-4">
+                {sug.newIssues.slice(0, 3).map((m) => (
+                  <li key={m}>{m}</li>
+                ))}
+              </ul>
+            )}
+          </li>
+        );
+      })}
+    </ol>
   );
 }

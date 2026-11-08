@@ -989,3 +989,93 @@ export function evaluateDraft(input: ScheduleInput, draft: DraftSlot[]): Evaluat
   });
   return evaluateAssignment(p, assign, PROFILES.equidad.weights, input.requests);
 }
+
+// ---------------------------------------------------------------------------
+// Sugerencias para sacar a alguien de un día: reemplazarla por otra o
+// intercambiar con quien tenga guardia otro día, ordenadas por el mismo costo
+// que usa el generador (perfil equidad).
+// ---------------------------------------------------------------------------
+
+export interface Suggestion {
+  kind: 'reemplazo' | 'intercambio';
+  /** Lugares que cambian: quién estaba y quién queda. */
+  changes: { date: string; slotIndex: number; from: string | null; to: string | null }[];
+  /** El borrador completo con el cambio aplicado (los lugares cambiados quedan fijados). */
+  slots: DraftSlot[];
+  /** Diferencia de costo respecto de como está (negativo = mejora). */
+  costDelta: number;
+  hardCount: number;
+  softCount: number;
+  /** Problemas que aparecen con el cambio y antes no estaban. */
+  newIssues: string[];
+}
+
+export function suggestReplacements(input: ScheduleInput, draft: DraftSlot[], targetKey: string, limit = 5): Suggestion[] {
+  const p = compile({ ...input, fixed: draft.filter((d) => d.raffleId && !d.residentId) });
+  const W = PROFILES.equidad.weights;
+  const idx = new Map(p.resIds.map((id, i) => [id, i]));
+  const byKey = new Map(draft.map((d) => [slotKey(d.date, d.slotIndex), d]));
+  const base = new Int16Array(p.slots.length);
+  p.slots.forEach((s, i) => {
+    const id = byKey.get(s.key)?.residentId;
+    base[i] = id ? (idx.get(id) ?? -1) : -1;
+  });
+  const t = p.slots.findIndex((s) => s.key === targetKey);
+  if (t < 0) return [];
+  const cur = base[t];
+  const baseCost = run(p, base, W, null);
+  const baseIssues = new Set(evaluateAssignment(p, base, W, input.requests).issues.map((i) => i.message));
+
+  const candidates: { kind: Suggestion['kind']; a: Int16Array; touched: number[]; cost: number }[] = [];
+  const consider = (kind: Suggestion['kind'], a: Int16Array, touched: number[]) => candidates.push({ kind, a, touched, cost: run(p, a, W, null) });
+
+  // Reemplazo: otra persona en ese lugar.
+  for (let r = 0; r < p.resIds.length; r++) {
+    if (r === cur) continue;
+    const a = base.slice();
+    a[t] = r;
+    consider('reemplazo', a, [t]);
+  }
+  // Intercambio: con quien tiene guardia otro día (sin tocar lo fijado a mano ni los sorteos).
+  if (cur >= 0) {
+    for (let u = 0; u < p.slots.length; u++) {
+      const r2 = base[u];
+      if (u === t || r2 < 0 || r2 === cur || p.slots[u].date === p.slots[t].date) continue;
+      const d = byKey.get(p.slots[u].key);
+      if (d?.locked || d?.raffleId || p.slots[u].fixed >= 0) continue;
+      const a = base.slice();
+      a[t] = r2;
+      a[u] = cur;
+      consider('intercambio', a, [t, u]);
+    }
+  }
+
+  return candidates
+    .sort((x, y) => x.cost - y.cost)
+    .slice(0, limit)
+    .map(({ kind, a, touched, cost }) => {
+      const ev = evaluateAssignment(p, a, W, input.requests);
+      const changes = touched.map((i) => ({
+        date: p.slots[i].date,
+        slotIndex: p.slots[i].slotIndex,
+        from: base[i] >= 0 ? p.resIds[base[i]] : null,
+        to: a[i] >= 0 ? p.resIds[a[i]] : null,
+      }));
+      const changed = new Set(touched.map((i) => p.slots[i].key));
+      const slots = draft.map((d) => {
+        const k = slotKey(d.date, d.slotIndex);
+        if (!changed.has(k)) return d;
+        const i = p.slots.findIndex((s) => s.key === k);
+        return { ...d, residentId: a[i] >= 0 ? p.resIds[a[i]] : null, locked: true };
+      });
+      return {
+        kind,
+        changes,
+        slots,
+        costDelta: cost - baseCost,
+        hardCount: ev.summary.hardCount,
+        softCount: ev.summary.softCount,
+        newIssues: ev.issues.map((i) => i.message).filter((m) => !baseIssues.has(m)),
+      };
+    });
+}

@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import type { CalendarDay, GuardiaRequest, MonthConfig, Resident } from '../types';
 import { DEFAULT_RULES, addDaysISO, effectiveMonthConfig, hasTag, protectingThursday, resolveMonth } from './dates';
-import { evaluateDraft, generateOptions, priorFromCounters, slotKey } from './generator';
+import { evaluateDraft, generateOptions, priorFromCounters, slotKey, suggestReplacements } from './generator';
 import { secureShuffle } from './random';
 import { upcomingBirthdays } from './birthdays';
 import { buildBreakdown } from './breakdown';
@@ -434,5 +434,27 @@ describe('finde largo libre por turnos', () => {
         expect(finde).not.toContain('bruno');
       }
     }
+  });
+});
+
+describe('sugerencias para sacar a alguien de un día', () => {
+  it('propone reemplazos o intercambios que la sacan de ese día, ordenados de mejor a peor', () => {
+    const nov = resolveMonth('2026-11', holidays, configs);
+    const input = { days: nov, residents, requests: [], rules: DEFAULT_RULES };
+    const [opt] = generateOptions(input, { seed: 1, profiles: ['equidad'] });
+    const target = opt.slots.find((s) => s.residentId === 'ana')!;
+    const key = slotKey(target.date, target.slotIndex);
+    const list = suggestReplacements(input, opt.slots, key);
+    expect(list.length).toBe(5);
+    for (const sug of list) {
+      const now = sug.slots.find((s) => slotKey(s.date, s.slotIndex) === key)!;
+      expect(now.residentId).not.toBe('ana');
+      expect(now.locked).toBe(true);
+    }
+    for (let i = 1; i < list.length; i++) expect(list[i].costDelta).toBeGreaterThanOrEqual(list[i - 1].costDelta);
+    expect(list[0].hardCount).toBe(0);
+    // Un intercambio mueve a ana a otro día (sigue con la misma cantidad de guardias).
+    const swap = list.find((s) => s.kind === 'intercambio');
+    if (swap) expect(swap.slots.filter((s) => s.residentId === 'ana').length).toBe(opt.slots.filter((s) => s.residentId === 'ana').length);
   });
 });

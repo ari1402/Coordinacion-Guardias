@@ -34,6 +34,7 @@ import { computeAllEquityCounters, resolvePeriod } from '../lib/equity';
 import {
   buildSlots,
   evaluateDraft,
+  suggestReplacements,
   generateOptions,
   priorFromCounters,
   slotKey,
@@ -523,6 +524,14 @@ export default function Generador() {
                   ? 'Al cambiar algo, esta opción pasa al editor con tu cambio.'
                   : undefined
               }
+              onSuggest={(date, slotIndex) => {
+                const viewed = monthOptions?.find((o) => o.profile === detailView);
+                return suggestReplacements(input, viewed ? viewed.slots : draft, slotKey(date, slotIndex));
+              }}
+              onApply={(slots) => {
+                setDraft(slots);
+                setDetailView('editor');
+              }}
               onChange={(date, slotIndex, residentId) => {
                 const viewed = monthOptions?.find((o) => o.profile === detailView);
                 const base = viewed ? viewed.slots : draft;
