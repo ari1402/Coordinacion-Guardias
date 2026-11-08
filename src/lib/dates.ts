@@ -28,6 +28,7 @@ export const DEFAULT_RULES: MonthRules = {
   avoidDoubleSatPref: true,
   sabadoComunConJueves: true,
   juevesLibraFinde: true,
+  findeLargoPorTurnos: true,
 };
 
 const TZ = 'America/Argentina/Buenos_Aires';

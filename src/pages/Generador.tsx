@@ -697,6 +697,7 @@ function RulesCard({
             r.avoidDoubleSatPref && 'máx. 1 sáb/preferiado',
             r.sabadoComunConJueves && 'sábado → jueves feliz',
             r.juevesLibraFinde && 'jueves → finde libre hasta el día hábil',
+            r.findeLargoPorTurnos && 'finde largo libre por turnos',
             'sin guardia el cumple ni el día anterior',
           ]
             .filter(Boolean)

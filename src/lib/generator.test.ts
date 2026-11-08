@@ -420,3 +420,19 @@ describe('sábados', () => {
     }
   });
 });
+
+describe('finde largo libre por turnos', () => {
+  it('quien todavía no tuvo finde largo libre no trabaja el finde largo (con la noche anterior)', () => {
+    const fer = (date: string) => ({ id: date, date, isHoliday: true });
+    const dic = resolveMonth('2026-12', [fer('2026-12-07'), fer('2026-12-08')], configs);
+    const largos: Record<string, number> = { ana: 0, bruno: 0, caro: 1, dani: 1, eli: 2, fede: 1, gabi: 1 };
+    const prior = Object.fromEntries(residents.map((r) => [r.id, { ...priorFromCounters(undefined), total: 8, largosLibres: largos[r.id] }]));
+    for (const seed of [1, 2, 3]) {
+      for (const opt of generateOptions({ days: dic, residents, requests: [], rules: DEFAULT_RULES, prior }, { seed })) {
+        const finde = opt.slots.filter((s) => s.date >= '2026-12-04' && s.date <= '2026-12-08').map((s) => s.residentId);
+        expect(finde).not.toContain('ana');
+        expect(finde).not.toContain('bruno');
+      }
+    }
+  });
+});

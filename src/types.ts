@@ -68,6 +68,12 @@ export interface MonthRules {
    * no vuelve a tener guardia hasta el primer día hábil siguiente.
    */
   juevesLibraFinde: boolean;
+  /**
+   * Finde largo libre por turnos: en cada finde largo (con la noche anterior)
+   * trabajan primero las que ya tuvieron más findes largos libres (o XL), así
+   * las que todavía no tuvieron uno lo tienen libre.
+   */
+  findeLargoPorTurnos: boolean;
 }
 
 /**

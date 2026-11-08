@@ -8,7 +8,7 @@ import type {
 } from '../types';
 import { requestIntent, requestShiftDates } from '../types';
 import { isBirthdayBlocked } from './birthdays';
-import { diffDays, hasTag, isoWeekday, isSabadoOrPreferiado, protectingThursday, shortDateLabel } from './dates';
+import { addDaysISO, diffDays, hasTag, isBusinessDay, isoWeekday, isSabadoOrPreferiado, protectingThursday, shortDateLabel, weekendBlock } from './dates';
 
 // ---------------------------------------------------------------------------
 // Perfiles: misma función de costo, distintos pesos. Así el generador puede
@@ -98,6 +98,11 @@ const POST_THURSDAY = 50_000;
 const XL_ROTATION = 1_500;
 /** Feriados por turnos: nadie repite feriado hasta que todas hayan hecho uno. */
 const FERIADO_ROTATION = 1_500;
+/**
+ * Finde largo libre por turnos: en un finde largo (con la noche anterior)
+ * trabajan primero las que ya tuvieron más findes largos libres (o XL).
+ */
+const LARGO_ROTATION = 1_000;
 
 const TURNS = [
   { pool: 'xlPool', cat: 'xl', weight: XL_ROTATION, code: 'finde_xl_turno', label: 'finde XL' },
@@ -114,6 +119,8 @@ export type PriorCounts = Record<Cat, number> & {
   sabSinComp?: number;
   /** Findes libres acumulados (comunes + largos) antes del mes. */
   findesLibres?: number;
+  /** Findes largos libres acumulados (contando los XL, que también dejan el finde libre). */
+  largosLibres?: number;
 };
 
 export function priorFromCounters(c: EquityCounters | undefined, lastShiftDate?: string): PriorCounts {
@@ -130,6 +137,7 @@ export function priorFromCounters(c: EquityCounters | undefined, lastShiftDate?:
     sinDormir: c?.sinDormir ?? 0,
     sabSinComp: c?.sabadosSinCompensar ?? 0,
     findesLibres: c?.findesLibresA ?? 0,
+    largosLibres: (c?.findesLibresLargos ?? 0) + (c?.findesXL ?? 0),
     lastShiftDate,
   };
 }
@@ -163,7 +171,8 @@ export type IssueCode =
   | 'pedido_on'
   | 'finde_post_jueves'
   | 'finde_xl_turno'
-  | 'feriado_turno';
+  | 'feriado_turno'
+  | 'finde_largo_turno';
 
 export interface Issue {
   severity: 'hard' | 'soft';
@@ -292,6 +301,8 @@ interface Problem {
   /** Por slot de finde XL / feriado: quiénes podrían hacerlo (pueden y no pidieron no estar). */
   xlPool: (number[] | null)[];
   feriadoPool: (number[] | null)[];
+  /** Por slot de finde largo (o su noche anterior): quiénes podrían hacerlo. */
+  largoPool: (number[] | null)[];
   /** Por slot: quiénes lo pidieron (quiero esta guardia / posguardia). */
   onBySlot: Set<number>[];
   /** Preferencia al azar para el finde XL entre quienes empatan en el turno. */
@@ -410,10 +421,18 @@ function compile(input: ScheduleInput): Problem {
   const pool = (i: number) => residents.map((_, r) => r).filter((r) => eligible[i][r] && !offAt[i].some((e) => e.r === r));
   const xlPool = slots.map((sl, i) => (sl.xl ? pool(i) : null));
   const feriadoPool = slots.map((sl, i) => (sl.feriado ? pool(i) : null));
+  // ¿El día es parte de un finde largo (o su noche anterior)?
+  const inLongWeekend = (date: string) => {
+    if (!isBusinessDay(date, isHoliday)) return weekendBlock(date, isHoliday).long;
+    const next = addDaysISO(date, 1);
+    return !isBusinessDay(next, isHoliday) && weekendBlock(next, isHoliday).long;
+  };
+  const largoPool = slots.map((sl, i) => (rules.findeLargoPorTurnos && inLongWeekend(sl.date) ? pool(i) : null));
 
   return {
     xlPool,
     feriadoPool,
+    largoPool,
     onBySlot,
     rules,
     resIds,
@@ -502,6 +521,25 @@ function run(p: Problem, assign: Int16Array, W: Weights, out: Collector | null):
         residentId: p.resIds[r],
         message: `${shortDateLabel(m.date)}: ${t.label} para ${name(r)}, que ya tuvo ${had(r)}; todavía esperan ${waiting.join(', ')}.`,
       });
+    }
+
+    // Finde largo libre por turnos: si alguien con más findes largos libres
+    // podía hacerlo, que no le toque a quien tuvo menos (un pedido lo saltea).
+    const lp = p.largoPool[s];
+    if (lp && !p.onBySlot[s].has(r)) {
+      const had = (x: number) => p.prior[x].largosLibres ?? 0;
+      const max = Math.max(...lp.map(had));
+      if (had(r) < max) {
+        cost += LARGO_ROTATION * (max - had(r));
+        const ahead = lp.filter((x) => had(x) === max).map(name);
+        out?.issues.push({
+          severity: 'soft',
+          code: 'finde_largo_turno',
+          slotKey: m.key,
+          residentId: p.resIds[r],
+          message: `${shortDateLabel(m.date)}: finde largo para ${name(r)}, que tuvo ${had(r)} finde(s) largo(s) libre(s); ${ahead.join(', ')} ya tuvieron ${max}.`,
+        });
+      }
     }
 
     const c = month[r];
