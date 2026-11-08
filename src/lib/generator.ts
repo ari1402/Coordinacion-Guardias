@@ -31,6 +31,8 @@ interface Weights {
   gapSoft: number;
   sameWd: number;
   doubleSatPref: number;
+  /** Dos sábados (o más) a la misma persona en el mes: mucho más fuerte que la equidad acumulada. */
+  doubleSat: number;
   satThu: number;
   offStrong: number;
   offSoft: number;
@@ -54,6 +56,7 @@ const BASE: Weights = {
   gapSoft: 8,
   sameWd: 25,
   doubleSatPref: 120,
+  doubleSat: 1000,
   satThu: 150,
   offStrong: 400,
   offSoft: 80,
@@ -651,6 +654,16 @@ function run(p: Problem, assign: Int16Array, W: Weights, out: Collector | null):
           });
         }
       }
+    }
+    const sats = wd[r * 7 + 5];
+    if (p.rules.avoidDoubleSatPref && sats > 1) {
+      cost += W.doubleSat * (sats - 1);
+      out?.issues.push({
+        severity: 'soft',
+        code: 'doble_sab_pref',
+        residentId: p.resIds[r],
+        message: `${name(r)} tiene ${sats} sábados en el mes.`,
+      });
     }
     if (p.rules.avoidDoubleSatPref && month[r].sabPref > 1) {
       cost += W.doubleSatPref * (month[r].sabPref - 1);

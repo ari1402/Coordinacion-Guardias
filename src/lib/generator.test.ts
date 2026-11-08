@@ -403,3 +403,20 @@ describe('regla especial del día (fiestas provisorias)', () => {
     }
   });
 });
+
+describe('sábados', () => {
+  it('nadie tiene dos sábados en el mes, aunque el acumulado esté desparejo', () => {
+    const dic = resolveMonth('2026-12', [{ id: '2026-12-08', date: '2026-12-08', isHoliday: true }], configs);
+    const prior = Object.fromEntries(
+      residents.map((r, i) => [r.id, { ...priorFromCounters(undefined), total: 8, sabPref: [0, 1, 4, 4, 1, 3, 4][i] }]),
+    );
+    for (const seed of [1, 2, 3]) {
+      for (const opt of generateOptions({ days: dic, residents, requests: [], rules: DEFAULT_RULES, prior }, { seed })) {
+        for (const r of residents) {
+          const sats = opt.slots.filter((s) => s.residentId === r.id && new Date(`${s.date}T12:00:00Z`).getUTCDay() === 6);
+          expect(sats.length).toBeLessThanOrEqual(1);
+        }
+      }
+    }
+  });
+});
