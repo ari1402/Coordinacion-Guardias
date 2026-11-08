@@ -7,6 +7,7 @@ import { doc, updateDoc } from 'firebase/firestore';
 import { auth, db } from '../firebase';
 import { todayISO } from '../lib/dates';
 import { disablePush, refreshPush } from '../lib/push';
+import UpdateBanner from './UpdateBanner';
 
 type NavItem = { to: string; label: string; icon: string; end?: boolean; short?: string; admin?: boolean };
 
@@ -100,6 +101,7 @@ export default function Layout() {
       </header>
 
       <main className="flex-1 min-w-0 px-4 sm:px-6 pt-4 md:py-6 pb-[calc(5.5rem+env(safe-area-inset-bottom))] md:pb-6 max-w-7xl mx-auto w-full">
+        <UpdateBanner />
         <Outlet />
       </main>
 

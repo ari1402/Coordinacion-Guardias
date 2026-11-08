@@ -1,5 +1,5 @@
 import clsx from 'clsx';
-import { useMemo, useState, type ReactNode } from 'react';
+import { useEffect, useMemo, useState, type ReactNode } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
 import Badge from '../components/Badge';
 import ImportTextModal from '../components/ImportTextModal';
@@ -153,6 +153,14 @@ export default function Generador() {
     return mergeTemplate(template, []);
   }, [savedDraft, monthShifts, template]);
   const dirty = !!edits[monthKey];
+  // Si hay cambios sin guardar, el navegador pregunta antes de recargar o cerrar.
+  const anyDirty = Object.keys(edits).length > 0;
+  useEffect(() => {
+    if (!anyDirty) return;
+    const warn = (e: BeforeUnloadEvent) => e.preventDefault();
+    window.addEventListener('beforeunload', warn);
+    return () => window.removeEventListener('beforeunload', warn);
+  }, [anyDirty]);
   const draft = useMemo(
     () => applyRaffleWinners(mergeTemplate(template, edits[monthKey] ?? baseDraft), raffles),
     [template, edits, monthKey, baseDraft, raffles],
