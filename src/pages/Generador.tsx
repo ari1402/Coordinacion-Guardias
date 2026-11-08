@@ -14,6 +14,7 @@ import {
   useCalendarData,
   useDrafts,
   useGenRules,
+  myGenRulesText,
   useRaffles,
   useRequests,
   useResidents,
@@ -76,7 +77,7 @@ export default function Generador() {
   const { requests } = useRequests();
   const { raffles } = useRaffles();
   const { drafts, loading: ld } = useDrafts(true);
-  const { genRules } = useGenRules(true);
+  const { genRules } = useGenRules(me?.id);
   const { rotations } = useRotations();
 
   const [edits, setEdits] = useState<Record<string, DraftSlot[]>>({});
@@ -124,7 +125,7 @@ export default function Generador() {
   }, [rotations, active, monthKey]);
 
   // Reglas escritas del mes: las fijadas, los "no" y los "solo" van al generador.
-  const writtenText = genRules.find((g) => g.id === monthKey)?.text ?? '';
+  const { text: writtenText, legacy: writtenLegacy } = myGenRulesText(genRules, monthKey, me?.id);
   const written = useMemo(
     () => applyWrittenRules(days, parseWrittenRules(writtenText, monthKey, active, days)),
     [days, writtenText, monthKey, active],
@@ -391,6 +392,7 @@ export default function Generador() {
               key={monthKey}
               monthKey={monthKey}
               stored={writtenText}
+              legacy={writtenLegacy}
               userId={me.id}
               residents={active}
               days={days}

@@ -370,9 +370,11 @@ export interface PrivateNote {
   updatedAt: string;
 }
 
-/** Reglas escritas del mes para el generador (doc id = mes). Solo admins. */
+/** Reglas escritas del mes para el generador, privadas de cada admin (doc id = mes_uid). */
 export interface GenRules {
   id: string;
+  /** Falta en las primeras (id = mes). */
+  month?: string;
   text: string;
   updatedBy: string;
   updatedAt: string;

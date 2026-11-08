@@ -69,11 +69,15 @@ service cloud.firestore {
       allow read, write: if isAdmin();
     }
 
-    // Reglas escritas para el generador (doc id = mes). Solo las admins.
-    match /genRules/{month} {
-      allow read, delete: if isAdmin();
+    // Reglas escritas para el generador: privadas de cada admin (doc id =
+    // mes_uid; las primeras se guardaron con id = mes). Solo las lee y escribe
+    // quien las escribió.
+    match /genRules/{id} {
+      allow read, delete: if isSignedIn() && resource.data.updatedBy == request.auth.uid;
       allow create, update: if isAdmin()
-        && request.resource.data.keys().hasOnly(['id', 'text', 'updatedBy', 'updatedAt'])
+        && id == request.resource.data.month + '_' + request.auth.uid
+        && request.resource.data.updatedBy == request.auth.uid
+        && request.resource.data.keys().hasOnly(['id', 'month', 'text', 'updatedBy', 'updatedAt'])
         && request.resource.data.text is string && request.resource.data.text.size() <= 5000;
     }
 

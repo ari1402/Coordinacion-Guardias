@@ -250,7 +250,7 @@ function GuiaAdmin() {
               </li>
               <li>
                 <b>✍️ Reglas escritas:</b> una por línea (“Pérez jueves 3”, “Gómez no del 20 al 27”, “Ruiz no jueves”, “solo Díaz y Sosa el 25”).
-                El generador las cumple; abajo se ve cómo se entendió cada una y si el editor la cumple. Las ven las dos admins.
+                El generador las cumple cuando generás vos; abajo se ve cómo se entendió cada una y si el editor la cumple. Son privadas: solo las ve quien las escribe.
               </li>
               <li>🎲 marca una guardia para sortear entre quienes elijas.</li>
               <li>🚫 deshabilita un lugar (lo toma un residente mayor u otra persona).</li>

@@ -115,10 +115,18 @@ export function useDrafts(enabled: boolean) {
   return { drafts: enabled ? data : [], loading: enabled && loading, error };
 }
 
-/** Reglas escritas para el generador (solo admins). */
-export function useGenRules(enabled: boolean) {
-  const { data, loading } = useCollection<GenRules>(enabled ? 'genRules' : '', []);
-  return { genRules: enabled ? data : [], loading: enabled && loading };
+/** Reglas escritas para el generador: solo las propias (son privadas). */
+export function useGenRules(uid?: string) {
+  const { data, loading } = useCollection<GenRules>(uid ? 'genRules' : '', uid ? [where('updatedBy', '==', uid)] : [], [uid]);
+  return { genRules: uid ? data : [], loading: !!uid && loading };
+}
+
+/** Texto de mis reglas escritas de un mes (las nuevas van en mes_uid; las primeras, en mes). */
+export function myGenRulesText(genRules: GenRules[], month: string, uid?: string): { text: string; legacy: boolean } {
+  const own = genRules.find((g) => g.id === `${month}_${uid}`);
+  if (own) return { text: own.text, legacy: false };
+  const old = genRules.find((g) => g.id === month);
+  return { text: old?.text ?? '', legacy: !!old };
 }
 
 export function useRotations() {

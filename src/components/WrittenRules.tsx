@@ -25,6 +25,7 @@ function unmet(rule: WrittenRule, draft: DraftSlot[]): string[] {
 export default function WrittenRulesCard({
   monthKey,
   stored,
+  legacy,
   userId,
   residents,
   days,
@@ -33,6 +34,8 @@ export default function WrittenRulesCard({
 }: {
   monthKey: string;
   stored: string;
+  /** Las primeras se guardaron con id = mes: al guardar se pasan a mes_uid. */
+  legacy: boolean;
   userId: string;
   residents: Resident[];
   days: ResolvedDay[];
@@ -58,17 +61,19 @@ export default function WrittenRulesCard({
 
   async function save(value: string) {
     if (timer.current) clearTimeout(timer.current);
-    if (value.trim() === stored.trim()) {
+    if (value.trim() === stored.trim() && !legacy) {
       editing.current = false;
       return;
     }
     setStatus('Guardando…');
     try {
+      const id = `${monthKey}_${userId}`;
       if (value.trim()) {
-        await setDoc(doc(db, 'genRules', monthKey), { id: monthKey, text: value.trim(), updatedBy: userId, updatedAt: new Date().toISOString() });
+        await setDoc(doc(db, 'genRules', id), { id, month: monthKey, text: value.trim(), updatedBy: userId, updatedAt: new Date().toISOString() });
       } else {
-        await deleteDoc(doc(db, 'genRules', monthKey));
+        await deleteDoc(doc(db, 'genRules', id));
       }
+      if (legacy) await deleteDoc(doc(db, 'genRules', monthKey));
       setStatus('Guardado ✓ — ya lo toma el generador');
       setTimeout(() => setStatus(null), 2500);
     } catch (e) {
@@ -80,8 +85,8 @@ export default function WrittenRulesCard({
 
   return (
     <Card
-      title="✍️ Reglas escritas"
-      subtitle="Una por línea. El generador las cumple sí o sí. Las ven y editan las dos admins."
+      title="✍️ Mis reglas escritas"
+      subtitle="Una por línea. El generador las cumple sí o sí cuando generás vos. Solo las ves vos."
     >
       <textarea
         value={text}
