@@ -21,9 +21,7 @@ import { useColors } from '../hooks/useColors';
 import { currentMonthKey, useMonth } from '../hooks/useMonth';
 import { isBirthday, isBirthdayBlocked } from '../lib/birthdays';
 import {
-  addDaysISO,
   effectiveMonthConfig,
-  isSabadoOrPreferiado,
   monthLabel,
   resolveMonth,
   shiftMonthKey,
@@ -43,7 +41,6 @@ import {
 import { buildBreakdown } from '../lib/breakdown';
 import { DEFAULT_DISABLED_NOTE, disableSlot, enableSlot } from '../lib/disableSlot';
 import { awayMonths } from '../lib/rotations';
-import { fiestasForMonth, fiestaUnavailable } from '../lib/fiestas';
 import { TAG_EMOJI, dayBgClass } from '../lib/labels';
 import { createRaffle, drawRaffle, setRaffleIgnored, winners } from '../lib/raffles';
 import {
@@ -117,27 +114,6 @@ export default function Generador() {
     return active.filter((r) => away[r.id]?.has(monthKey));
   }, [rotations, active, monthKey]);
 
-  // Navidad / Año nuevo: los cubren quienes tienen vacaciones en enero / febrero.
-  const fiestas = useMemo(
-    () => (cfg.rules.fiestasPorVacaciones ? fiestasForMonth(monthKey, rotations, active.map((r) => r.id)) : []),
-    [cfg.rules.fiestasPorVacaciones, monthKey, rotations, active],
-  );
-
-  // Guardias de las últimas dos semanas del mes anterior: las reglas del mes
-  // (día de semana, findes, sábados/preferiados) también miran el cambio de mes.
-  const recentShifts = useMemo(() => {
-    const from = addDaysISO(`${monthKey}-01`, -14);
-    const prevDays = new Map(
-      resolveMonth(shiftMonthKey(monthKey, -1), storedDays, monthConfigs).map((d) => [d.date, d]),
-    );
-    return shifts
-      .filter((s) => s.status !== 'cancelada' && s.date >= from && s.date < `${monthKey}-01`)
-      .map((s) => {
-        const day = prevDays.get(s.date);
-        return { residentId: s.actualResidentId, date: s.date, ...(day ? { sabPref: isSabadoOrPreferiado(day) } : {}) };
-      });
-  }, [shifts, monthKey, storedDays, monthConfigs]);
-
   const input: ScheduleInput = useMemo(
     () => ({
       days,
@@ -146,13 +122,9 @@ export default function Generador() {
       rules: cfg.rules,
       prior,
       holidayDates: storedDays.filter((d) => d.isHoliday).map((d) => d.date),
-      unavailable: [
-        ...onVacation.map((r) => ({ residentId: r.id, dates: days.map((d) => d.date), reason: 'Vacaciones' })),
-        ...fiestaUnavailable(fiestas, active.map((r) => r.id)),
-      ],
-      recentShifts,
+      unavailable: onVacation.map((r) => ({ residentId: r.id, dates: days.map((d) => d.date), reason: 'Vacaciones' })),
     }),
-    [days, active, monthRequests, cfg.rules, prior, storedDays, onVacation, fiestas, recentShifts],
+    [days, active, monthRequests, cfg.rules, prior, storedDays, onVacation],
   );
 
   const source: 'borrador' | 'publicado' | 'vacío' = savedDraft ? 'borrador' : monthShifts.length ? 'publicado' : 'vacío';
@@ -411,13 +383,6 @@ export default function Generador() {
                 {cfg.rules.maxPerPerson > 0 && <> — revisá el tope de {cfg.rules.maxPerPerson} por persona en las reglas del mes</>}.
               </p>
             )}
-            {fiestas.map((f) => (
-              <p key={f.block.key} className="text-sm bg-accent-soft rounded-lg px-3 py-2 mb-3">
-                {f.block.key === 'navidad' ? '🎄' : '🥂'} <b>{f.block.label}</b> ({f.dates.map((d) => shortDateLabel(d)).join(', ')}): la cubren{' '}
-                <b>{f.coverers.map((id) => active.find((r) => r.id === id)?.shortName).join(', ')}</b> (vacaciones en{' '}
-                {monthLabel(f.block.groupMonth).split(' ')[0].toLowerCase()}, según los carriles). Se puede desactivar en las reglas del mes.
-              </p>
-            ))}
             <div className="2xl:overflow-x-auto 2xl:-mx-1 2xl:px-1">
               {/* Celular, tablet y compu común: lista de días; pantallas muy anchas: grilla semanal. */}
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 2xl:grid-cols-7 gap-1.5 2xl:min-w-[880px]">
@@ -646,7 +611,6 @@ function RulesCard({
             r.avoidDoubleSatPref && 'máx. 1 sáb/preferiado',
             r.sabadoComunConJueves && 'sábado → jueves feliz',
             r.juevesLibraFinde && 'jueves → finde libre hasta el día hábil',
-            r.fiestasPorVacaciones && 'Navidad/Año nuevo según vacaciones',
             'sin guardia el cumple ni el día anterior',
           ]
             .filter(Boolean)

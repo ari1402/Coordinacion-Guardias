@@ -176,15 +176,6 @@ function GuiaTodas() {
             como feriado).
           </li>
           <li>Nadie hace guardia el día de su cumple ni el anterior, ni en el mes de vacaciones de su carril.</li>
-          <li>
-            <b>Fiestas:</b> Navidad (24/12 hasta el domingo siguiente) la cubren las que tienen vacaciones en enero; Año nuevo
-            (31/12 hasta el domingo siguiente), las que las tienen en febrero. Sale solo de los carriles.
-          </li>
-          <li>
-            El generador mira también las últimas dos semanas del mes anterior: al cambiar de mes evita repetir viernes-viernes,
-            sábado-sábado o domingo-domingo en semanas seguidas, guardia dos findes seguidos y dos sábados/preferiados pegados
-            (además de la distancia mínima y el finde libre después de un jueves, que ya miraba).
-          </li>
           <li>Respeta la distancia mínima entre guardias.</li>
           <li>Si hacés guardia un jueves, ese finde queda libre hasta el primer día hábil.</li>
           <li>
@@ -233,7 +224,7 @@ function GuiaAdmin() {
             <b>Revisar las reglas del mes</b> (Admin → Reglas del mes):
             <ul>
               <li>R1 por día de la semana, distancia mínima/ideal entre guardias y tope por persona.</li>
-              <li>Opciones: no repetir día de semana, máximo un sábado/preferiado, sábado → jueves feliz, jueves libera el finde, fiestas según vacaciones.</li>
+              <li>Opciones: no repetir día de semana, máximo un sábado/preferiado, sábado → jueves feliz, jueves libera el finde.</li>
               <li>
                 <b>🔒 Notas y acuerdos del mes:</b> solo los ve quien los escribe (ni el grupo ni la otra admin).
               </li>
