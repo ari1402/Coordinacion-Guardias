@@ -431,15 +431,15 @@ describe('fiestas y cambio de mes', () => {
       );
       expect(opt.slots.find((s) => s.date === '2026-12-04')?.residentId).not.toBe('ana');
     }
-    // No es solo el viernes: cualquier día de la semana, findes seguidos y sábados.
+    // Lo mismo con sábado-sábado y domingo-domingo.
     const recentShifts = [
       { residentId: 'bruno', date: '2026-11-28', sabPref: true }, // sábado
-      { residentId: 'caro', date: '2026-11-24' }, // martes
+      { residentId: 'caro', date: '2026-11-29' }, // domingo
     ];
     for (const seed of [1, 2, 3, 4, 5]) {
       const [opt] = generateOptions({ days: dic, residents, requests: [], rules: DEFAULT_RULES, recentShifts }, { seed, profiles: ['equidad'] });
       const of = (d: string) => opt.slots.find((s) => s.date === d)?.residentId;
-      expect(of('2026-12-01')).not.toBe('caro'); // martes siguiente
+      expect(of('2026-12-06')).not.toBe('caro'); // domingo siguiente
       for (const d of ['2026-12-04', '2026-12-05', '2026-12-06', '2026-12-12']) expect(of(d)).not.toBe('bruno'); // finde siguiente y sábado 12
     }
     // Y si se le pone a mano, aparece el aviso.

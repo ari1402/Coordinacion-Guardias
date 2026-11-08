@@ -542,10 +542,11 @@ function run(p: Problem, assign: Int16Array, W: Weights, out: Collector | null):
             residentId: p.resIds[r],
             message: `${shortDateLabel(m.date)}: ${name(r)} ${text} (la anterior fue el ${shortDateLabel(e.date)}, del mes pasado).`,
           });
-        // Mismo día de la semana (p. ej. viernes 27/11 y viernes 4/12).
-        if (p.rules.avoidSameWeekday && e.weekday === m.weekday && (dist === 7 || dist === 14)) {
-          cost += dist === 7 ? W.sameWd : W.sameWd / 2;
-          issue('mismo_dia_semana', `repite ${WEEKDAY_NAMES[m.weekday]} ${dist === 7 ? 'dos semanas seguidas' : 'a las dos semanas'}`);
+        // Mismo día del finde dos semanas seguidas: viernes-viernes, sábado-sábado,
+        // domingo-domingo (p. ej. viernes 27/11 y viernes 4/12).
+        if (p.rules.avoidSameWeekday && m.finde && e.weekday === m.weekday && dist === 7) {
+          cost += 2 * W.sameWd;
+          issue('mismo_dia_semana', `repite ${WEEKDAY_NAMES[m.weekday]} dos semanas seguidas`);
         }
         // Dos findes seguidos (vie/sáb/dom del finde anterior y de este).
         if (m.finde && e.finde && m.dayNum - m.weekday - (e.dayNum - e.weekday) === 7) {
