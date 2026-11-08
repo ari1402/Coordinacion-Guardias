@@ -244,6 +244,25 @@ export default function Generador() {
     }, 30);
   }
 
+  // Quitar el sorteo de una guardia (aunque ya se haya sorteado): el lugar
+  // queda libre. Los sorteos no se borran: queda ignorado y registrado.
+  function removeRaffle(slot: DraftSlot) {
+    return withBusy('Quitando sorteo…', async () => {
+      const r = raffles.find((x) => x.id === slot.raffleId);
+      if (r && !r.ignored) await setRaffleIgnored(r, true, me!.id);
+      const key = slotKey(slot.date, slot.slotIndex);
+      const next = draft.map((s) => {
+        if (slotKey(s.date, s.slotIndex) !== key) return s;
+        const { raffleId: _omit, ...rest } = s;
+        void _omit;
+        return { ...rest, residentId: null, locked: false };
+      });
+      await saveDraft(monthKey, next, me!.id);
+      clearEdits();
+      setRaffleSlot(null);
+    });
+  }
+
   function updateSlot(key: string, patch: Partial<DraftSlot>) {
     setDraft(draft.map((s) => (slotKey(s.date, s.slotIndex) === key ? { ...s, ...patch } : s)));
   }
@@ -489,6 +508,9 @@ export default function Generador() {
                     onChange={(key, residentId) => updateSlot(key, { residentId, locked: true })}
                     onToggleLock={(key, locked) => updateSlot(key, { locked })}
                     onRaffle={setRaffleSlot}
+                    onRemoveRaffle={(slot) => {
+                      if (confirm('¿Quitar este sorteo? El lugar queda libre para elegir a mano o generar. El sorteo queda registrado como ignorado.')) removeRaffle(slot);
+                    }}
                     onDraw={(r) => withBusy('Sorteando…', async () => void (await drawRaffle(r, me!.id, nameOf)))}
                     onDisable={(slotIndex) => {
                       const note = prompt('Esta guardia no la hace un R1. ¿Quién la toma?', DEFAULT_DISABLED_NOTE);
@@ -673,23 +695,7 @@ export default function Generador() {
             setRaffleSlot(null);
           })
         }
-        onRemove={(slot) =>
-          withBusy('Quitando sorteo…', async () => {
-            const r = raffles.find((x) => x.id === slot.raffleId);
-            // Los sorteos no se borran: el de esta guardia queda ignorado.
-            if (r && !r.ignored) await setRaffleIgnored(r, true, me!.id);
-            const key = slotKey(slot.date, slot.slotIndex);
-            const next = draft.map((s) => {
-              if (slotKey(s.date, s.slotIndex) !== key) return s;
-              const { raffleId: _omit, ...rest } = s;
-              void _omit;
-              return { ...rest, residentId: null, locked: false };
-            });
-            await saveDraft(monthKey, next, me!.id);
-            clearEdits();
-            setRaffleSlot(null);
-          })
-        }
+        onRemove={removeRaffle}
       />
     </div>
   );
@@ -836,6 +842,7 @@ function DayCell({
   onChange,
   onToggleLock,
   onRaffle,
+  onRemoveRaffle,
   onDraw,
   onDisable,
   onEnable,
@@ -851,6 +858,7 @@ function DayCell({
   onChange: (key: string, residentId: string | null) => void;
   onToggleLock: (key: string, locked: boolean) => void;
   onRaffle: (slot: DraftSlot) => void;
+  onRemoveRaffle: (slot: DraftSlot) => void;
   onDraw: (r: Raffle) => void;
   onDisable: (slotIndex: number) => void;
   onEnable: (slotIndex: number) => void;
@@ -876,7 +884,12 @@ function DayCell({
             <div key={key} className="rounded-lg border border-accent/40 bg-accent-soft px-1.5 py-1 text-[11px] flex flex-col gap-0.5">
               <span className="text-accent font-medium">🎲 Sorteo</span>
               {raffle?.status === 'sorteado' ? (
-                <span className="font-medium">Ganó {byId.get(winners(raffle)[0] ?? '')?.shortName}</span>
+                <div className="flex gap-1.5 items-center justify-between">
+                  <span className="font-medium">Ganó {byId.get(winners(raffle)[0] ?? '')?.shortName}</span>
+                  <button onClick={() => onRemoveRaffle(s)} className="underline text-text-dim">
+                    Quitar sorteo
+                  </button>
+                </div>
               ) : (
                 <div className="flex gap-1.5">
                   {raffle && (
