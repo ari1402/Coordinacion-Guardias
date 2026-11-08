@@ -379,3 +379,27 @@ describe('findes enteros aunque crucen de mes', () => {
     }
   });
 });
+
+describe('regla especial del día (fiestas provisorias)', () => {
+  it('ese día solo asigna a las que figuran y pone fija a la de presetResidents', () => {
+    const fer = (date: string, extra = {}) => ({ id: date, date, isHoliday: true, ...extra });
+    const stored = [
+      fer('2026-12-08'),
+      fer('2026-12-24', { requiredR1Override: 2, onlyResidents: ['ana', 'bruno', 'caro', 'dani'], presetResidents: ['ana'], onlyNote: 'Navidad' }),
+      fer('2026-12-25', { requiredR1Override: 2, onlyResidents: ['bruno', 'caro', 'dani'], presetResidents: [], onlyNote: 'Navidad' }),
+      fer('2026-12-31', { requiredR1Override: 2, onlyResidents: ['ana', 'eli', 'fede', 'gabi'], presetResidents: ['ana'], onlyNote: 'Año nuevo' }),
+    ];
+    const dic = resolveMonth('2026-12', stored, configs);
+    for (const seed of [1, 2, 3]) {
+      for (const opt of generateOptions({ days: dic, residents, requests: [], rules: DEFAULT_RULES }, { seed })) {
+        const on = (d: string) => opt.slots.filter((s) => s.date === d).map((s) => s.residentId);
+        expect(on('2026-12-24')).toContain('ana');
+        expect(on('2026-12-31')).toContain('ana');
+        for (const id of on('2026-12-24')) expect(['ana', 'bruno', 'caro', 'dani']).toContain(id);
+        for (const id of on('2026-12-25')) expect(['bruno', 'caro', 'dani']).toContain(id);
+        for (const id of on('2026-12-31')) expect(['ana', 'eli', 'fede', 'gabi']).toContain(id);
+        expect(opt.evaluation.issues.filter((i) => i.code === 'no_disponible')).toHaveLength(0);
+      }
+    }
+  });
+});

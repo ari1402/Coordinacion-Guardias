@@ -383,6 +383,18 @@ export default function Generador() {
                 {cfg.rules.maxPerPerson > 0 && <> — revisá el tope de {cfg.rules.maxPerPerson} por persona en las reglas del mes</>}.
               </p>
             )}
+            {days
+              .filter((d) => d.onlyResidents?.length)
+              .map((d) => {
+                const nameOf = (id: string) => active.find((r) => r.id === id)?.shortName ?? '?';
+                return (
+                  <p key={d.date} className="text-sm bg-accent-soft rounded-lg px-3 py-2 mb-3">
+                    📌 <b className="capitalize">{shortDateLabel(d.date)}</b>
+                    {d.onlyNote ? <> ({d.onlyNote})</> : null}: solo {d.onlyResidents!.map(nameOf).join(', ')}
+                    {d.presetResidents?.length ? <> · va sí o sí: <b>{d.presetResidents.map(nameOf).join(', ')}</b></> : null}.
+                  </p>
+                );
+              })}
             <div className="2xl:overflow-x-auto 2xl:-mx-1 2xl:px-1">
               {/* Celular, tablet y compu común: lista de días; pantallas muy anchas: grilla semanal. */}
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 2xl:grid-cols-7 gap-1.5 2xl:min-w-[880px]">

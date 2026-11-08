@@ -176,6 +176,9 @@ function resolveDay(
     holidayName: stored?.holidayName,
     tags,
     notes: stored?.notes,
+    ...(stored?.onlyResidents?.length
+      ? { onlyResidents: stored.onlyResidents, presetResidents: stored.presetResidents ?? [], onlyNote: stored.onlyNote }
+      : {}),
   };
 }
 

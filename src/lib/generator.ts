@@ -309,7 +309,14 @@ function compile(input: ScheduleInput): Problem {
     const d = dayByDate.get(date)!;
     const key = slotKey(date, slotIndex);
     const f = fixedByKey.get(key);
-    const fixedIdx = f?.residentId && (f.locked || f.raffleId) ? (resIdx.get(f.residentId) ?? -1) : -1;
+    // Regla del día: las de presetResidents van sí o sí en los primeros lugares.
+    const preset = d.presetResidents?.[slotIndex - (d.disabledSlots ?? []).filter((i) => i < slotIndex).length];
+    const fixedIdx =
+      f?.residentId && (f.locked || f.raffleId)
+        ? (resIdx.get(f.residentId) ?? -1)
+        : preset && !f?.raffleId
+          ? (resIdx.get(preset) ?? -1)
+          : -1;
     return {
       key,
       date,
@@ -344,6 +351,13 @@ function compile(input: ScheduleInput): Problem {
     const r = resIdx.get(u.residentId);
     if (r !== undefined) for (const date of u.dates) blockedReason.set(`${r}|${date}`, u.reason);
   }
+  // Regla del día (p. ej. fiestas): solo pueden las que figuran.
+  for (const d of days) {
+    if (!d.onlyResidents?.length) continue;
+    resIds.forEach((id, r) => {
+      if (!d.onlyResidents!.includes(id)) blockedReason.set(`${r}|${d.date}`, `regla:${d.onlyNote || 'regla especial del día'}`);
+    });
+  }
 
   const eligible = slots.map((s) =>
     residents.map((res, r) => !blockedReason.has(`${r}|${s.date}`) && !isBirthdayBlocked(s.date, res)),
@@ -351,7 +365,11 @@ function compile(input: ScheduleInput): Problem {
   const reason = slots.map((s) =>
     residents.map((res, r) => {
       const b = blockedReason.get(`${r}|${s.date}`);
-      if (b !== undefined) return b === 'Vacaciones' ? 'vacaciones' : `bloqueo (${b || 'sin motivo'})`;
+      if (b !== undefined) {
+        if (b === 'Vacaciones') return 'vacaciones';
+        if (b.startsWith('regla:')) return b.slice('regla:'.length);
+        return `bloqueo (${b || 'sin motivo'})`;
+      }
       if (isBirthdayBlocked(s.date, res)) return 'cumpleaños o víspera';
       return null;
     }),

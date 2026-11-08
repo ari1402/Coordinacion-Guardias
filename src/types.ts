@@ -104,6 +104,13 @@ export interface CalendarDay {
   disabledSlots?: number[];
   disabledNote?: string | null;
   notes?: string;
+  /**
+   * Regla especial del día (p. ej. fiestas): solo estas residentes pueden
+   * hacer la guardia ese día, y las de `presetResidents` van sí o sí.
+   */
+  onlyResidents?: string[];
+  presetResidents?: string[];
+  onlyNote?: string;
 }
 
 export type DayTag =
@@ -132,6 +139,13 @@ export interface ResolvedDay {
   holidayName?: string;
   tags: DayTag[];
   notes?: string;
+  /**
+   * Regla especial del día (p. ej. fiestas): solo estas residentes pueden
+   * hacer la guardia ese día, y las de `presetResidents` van sí o sí.
+   */
+  onlyResidents?: string[];
+  presetResidents?: string[];
+  onlyNote?: string;
 }
 
 export type ShiftStatus = 'programada' | 'realizada' | 'cancelada';
